@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-blue
+  labels:
+    app: myapp
+    slot: blue
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: myapp
+      slot: blue
+  template:
+    metadata:
+      labels:
+        app: myapp
+        slot: blue
+        version: v1
+    spec:
+      containers:
+        - name: web
+          image: nginx:1.24
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: html
+              mountPath: /usr/share/nginx/html
+      initContainers:
+        - name: init-html
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              cat <<'EOF' > /html/index.html
+              <!DOCTYPE html>
+              <html>
+              <head><title>Blue Environment</title></head>
+              <body style="background:#1a1a2e;color:#e0e0e0;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+                <div style="text-align:center;">
+                  <h1 style="color:#4dabf7;">🔵 BLUE ENVIRONMENT</h1>
+                  <p style="font-size:1.2em;">Version: v1 | Slot: BLUE (LIVE)</p>
+                  <p style="color:#74c0fc;">This is the current production environment.</p>
+                </div>
+              </body>
+              </html>
+              EOF
+          volumeMounts:
+            - name: html
+              mountPath: /html
+      volumes:
+        - name: html
+          emptyDir: {}

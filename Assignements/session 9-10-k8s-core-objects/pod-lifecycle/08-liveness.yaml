@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: lifecycle-liveness
+  labels:
+    app: lifecycle-lab
+    demo: liveness
+spec:
+  containers:
+    - name: app
+      image: busybox:1.36
+      command:
+        - sh
+        - -c
+        - |
+          echo "App started"
+          touch /tmp/healthy
+          sleep 20
+          echo "Simulating failure — removing health file"
+          rm -f /tmp/healthy
+          sleep 3600
+      livenessProbe:
+        exec:
+          command:
+            - cat
+            - /tmp/healthy
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        failureThreshold: 3

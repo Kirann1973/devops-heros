@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: lifecycle-init
+  labels:
+    app: lifecycle-lab
+    demo: init-container
+spec:
+  initContainers:
+    - name: setup
+      image: busybox:1.36
+      command:
+        - sh
+        - -c
+        - |
+          echo "Init: preparing configuration..."
+          sleep 5
+          echo "config=ready" > /work/config.txt
+          echo "Init: setup complete"
+      volumeMounts:
+        - name: shared
+          mountPath: /work
+  containers:
+    - name: app
+      image: busybox:1.36
+      command:
+        - sh
+        - -c
+        - |
+          echo "Main: reading config from init container..."
+          cat /work/config.txt
+          echo "Main: application running"
+          sleep 3600
+      volumeMounts:
+        - name: shared
+          mountPath: /work
+  volumes:
+    - name: shared
+      emptyDir: {}

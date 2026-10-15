@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-canary
+  labels:
+    app: myapp-canary
+    track: canary
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: myapp-canary
+      track: canary
+  template:
+    metadata:
+      labels:
+        app: myapp-canary
+        track: canary
+        version: v2
+    spec:
+      containers:
+        - name: web
+          image: nginx:1.25
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: html
+              mountPath: /usr/share/nginx/html
+      initContainers:
+        - name: init-html
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              cat <<'EOF' > /html/index.html
+              <!DOCTYPE html>
+              <html>
+              <head><title>Canary v2</title></head>
+              <body style="background:#2d1b00;color:#e0e0e0;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+                <div style="text-align:center;">
+                  <h1 style="color:#ff922b;">🐤 CANARY v2</h1>
+                  <p style="font-size:1.2em;">Track: canary | Version: v2</p>
+                  <p style="color:#ffd43b;">Experimental — serving ~10% of traffic</p>
+                </div>
+              </body>
+              </html>
+              EOF
+          volumeMounts:
+            - name: html
+              mountPath: /html
+      volumes:
+        - name: html
+          emptyDir: {}

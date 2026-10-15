@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: lifecycle-multi-container
+  labels:
+    app: lifecycle-lab
+    demo: multi-container
+spec:
+  containers:
+    - name: app
+      image: busybox:1.36
+      command:
+        - sh
+        - -c
+        - |
+          while true; do
+            echo "[$(date)] App: writing log entry" >> /var/log/app.log
+            sleep 5
+          done
+      volumeMounts:
+        - name: logs
+          mountPath: /var/log
+    - name: sidecar
+      image: busybox:1.36
+      command:
+        - sh
+        - -c
+        - |
+          echo "Sidecar: watching logs..."
+          tail -f /var/log/app.log
+      volumeMounts:
+        - name: logs
+          mountPath: /var/log
+  volumes:
+    - name: logs
+      emptyDir: {}

@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: lifecycle-crashloop
+  labels:
+    app: lifecycle-lab
+    demo: crashloop
+spec:
+  containers:
+    - name: crasher
+      image: busybox:1.36
+      command:
+        - sh
+        - -c
+        - |
+          echo "Starting..."
+          sleep 2
+          echo "Crashing!"
+          exit 1
