@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: clusterip-client
+spec:
+  restartPolicy: Never
+  containers:
+    - name: client
+      image: busybox:1.36
+      command:
+        - sh
+        - -c
+        - |
+          echo "Testing ClusterIP Service..."
+          wget -qO- http://web-service-clusterip:80 2>/dev/null | head -5
+          echo ""
+          echo "ClusterIP test complete"

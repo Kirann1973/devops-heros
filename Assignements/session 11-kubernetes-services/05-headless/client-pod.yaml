@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: headless-client
+spec:
+  restartPolicy: Never
+  containers:
+    - name: client
+      image: busybox:1.36
+      command:
+        - sh
+        - -c
+        - |
+          echo "Testing Headless Service DNS..."
+          echo ""
+          echo "--- Service DNS (returns Pod IPs) ---"
+          nslookup web-service-headless
+          echo ""
+          echo "--- Individual Pod DNS ---"
+          nslookup web-headless-0.web-service-headless.default.svc.cluster.local
+          echo ""
+          echo "Headless test complete"

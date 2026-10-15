@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: curl-test
+spec:
+  restartPolicy: Never
+  containers:
+    - name: curl
+      image: curlimages/curl:8.4.0
+      command:
+        - sh
+        - -c
+        - |
+          echo "=== DNS & Service Connectivity Test ==="
+          echo ""
+          echo "--- ClusterIP ---"
+          curl -s --connect-timeout 3 http://web-service-clusterip:80 | head -5 || echo "ClusterIP: not reachable"
+          echo ""
+          echo "--- Headless ---"
+          curl -s --connect-timeout 3 http://web-service-headless:80 | head -5 || echo "Headless: not reachable"
+          echo ""
+          echo "--- ExternalName ---"
+          curl -s --connect-timeout 3 http://external-database-service | head -5 || echo "ExternalName: not reachable"
+          echo ""
+          echo "=== Test Complete ==="

@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: externalname-client
+spec:
+  restartPolicy: Never
+  containers:
+    - name: client
+      image: busybox:1.36
+      command:
+        - sh
+        - -c
+        - |
+          echo "Testing ExternalName Service DNS..."
+          nslookup external-database-service
+          echo ""
+          echo "ExternalName test complete"

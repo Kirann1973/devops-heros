@@ -1,0 +1,22 @@
+# ==============================================================================
+# TROUBLESHOOTING: Service with no matching endpoints
+# The selector targets 'app: does-not-exist' — no Pods match,
+# so the Service has zero endpoints and all requests fail.
+#
+# Debug with:
+#   kubectl get endpoints empty-endpoints-svc
+#   kubectl describe svc empty-endpoints-svc
+# ==============================================================================
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: empty-endpoints-svc
+spec:
+  type: ClusterIP
+  selector:
+    app: does-not-exist
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80
