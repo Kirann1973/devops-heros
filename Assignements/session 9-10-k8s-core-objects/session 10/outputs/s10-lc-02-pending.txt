@@ -1,0 +1,18 @@
+########## Pod lifecycle 02: Pending (asks for 9Gi memory, no node has it) ##########
+$ kubectl apply -f pod-lifecycle/02-pending.yaml
+pod/lifecycle-pending created
+
+$ sleep 10
+
+$ kubectl get pod lifecycle-pending
+NAME                READY   STATUS    RESTARTS   AGE
+lifecycle-pending   0/1     Pending   0          10s
+
+$ details lifecycle-pending
+Status:           Pending
+Events (last 8):
+  Warning  FailedScheduling  11s   default-scheduler  0/1 nodes are available: 1 Insufficient memory. preemption: 0/1 nodes are available: 1 Preemption is not helpful for scheduling.
+
+$ kubectl delete pod lifecycle-pending
+pod "lifecycle-pending" deleted from default namespace
+

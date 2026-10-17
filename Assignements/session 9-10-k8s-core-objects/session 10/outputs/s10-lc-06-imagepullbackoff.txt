@@ -1,0 +1,28 @@
+########## Pod lifecycle 06: ErrImagePull / ImagePullBackOff (image does not exist) ##########
+$ kubectl apply -f pod-lifecycle/06-imagepullbackoff.yaml
+pod/lifecycle-image-error created
+
+$ kubectl wait --for=jsonpath='{.status.containerStatuses[0].state.waiting.reason}'=ImagePullBackOff pod/lifecycle-image-error --timeout=180s
+pod/lifecycle-image-error condition met
+
+$ kubectl get pod lifecycle-image-error
+NAME                    READY   STATUS             RESTARTS   AGE
+lifecycle-image-error   0/1     ImagePullBackOff   0          12s
+
+$ details lifecycle-image-error
+Status:           Pending
+    State:          Waiting
+      Reason:       ImagePullBackOff
+    Ready:          False
+    Restart Count:  0
+Events (last 8):
+  Normal   Scheduled  12s               default-scheduler  Successfully assigned default/lifecycle-image-error to minikube
+  Warning  Failed     11s               kubelet            spec.containers{broken-image}: Failed to pull image "jakwehrgkaejw:kahsdfgkhj": failed to pull and unpack image "docker.io/library/jakwehrgkaejw:kahsdfgkhj": failed to resolve reference "docker.io/library/jakwehrgkaejw:kahsdfgkhj": pull access denied, repository does not exist or may require authorization: server message: insufficient_scope: authorization failed
+  Warning  Failed     11s               kubelet            spec.containers{broken-image}: Error: ErrImagePull
+  Normal   BackOff    10s               kubelet            spec.containers{broken-image}: Back-off pulling image "jakwehrgkaejw:kahsdfgkhj"
+  Warning  Failed     10s               kubelet            spec.containers{broken-image}: Error: ImagePullBackOff
+  Normal   Pulling    0s (x2 over 12s)  kubelet            spec.containers{broken-image}: Pulling image "jakwehrgkaejw:kahsdfgkhj"
+
+$ kubectl delete pod lifecycle-image-error --grace-period=1
+pod "lifecycle-image-error" deleted from default namespace
+

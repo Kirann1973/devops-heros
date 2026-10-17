@@ -1,0 +1,43 @@
+########## Pod lifecycle 10: Init container (runs to completion before the app starts) ##########
+$ kubectl apply -f pod-lifecycle/10-init-container.yaml
+pod/lifecycle-init created
+
+$ sleep 3
+
+$ kubectl get pod lifecycle-init
+NAME             READY   STATUS     RESTARTS   AGE
+lifecycle-init   0/1     Init:0/1   0          3s
+
+$ kubectl wait --for=condition=Ready pod/lifecycle-init --timeout=180s
+pod/lifecycle-init condition met
+
+$ kubectl get pod lifecycle-init
+NAME             READY   STATUS    RESTARTS   AGE
+lifecycle-init   1/1     Running   0          11s
+
+$ kubectl logs lifecycle-init -c setup
+Init container running
+Init complete
+
+$ details lifecycle-init
+Status:           Running
+    State:          Terminated
+      Reason:       Completed
+      Exit Code:    0
+    Ready:          True
+    Restart Count:  0
+    State:          Running
+    Ready:          True
+    Restart Count:  0
+Events (last 8):
+  Normal  Scheduled  11s   default-scheduler  Successfully assigned default/lifecycle-init to minikube
+  Normal  Pulled     11s   kubelet            spec.initContainers{setup}: Container image "busybox:1.36" already present on machine and can be accessed by the pod
+  Normal  Created    11s   kubelet            spec.initContainers{setup}: Container created
+  Normal  Started    11s   kubelet            spec.initContainers{setup}: Container started
+  Normal  Pulled     0s    kubelet            spec.containers{app}: Container image "nginx:1.27" already present on machine and can be accessed by the pod
+  Normal  Created    0s    kubelet            spec.containers{app}: Container created
+  Normal  Started    0s    kubelet            spec.containers{app}: Container started
+
+$ kubectl delete pod lifecycle-init
+pod "lifecycle-init" deleted from default namespace
+

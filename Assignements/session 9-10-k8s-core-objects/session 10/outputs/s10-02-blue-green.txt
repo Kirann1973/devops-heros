@@ -1,0 +1,51 @@
+########## Strategy 2: Blue-Green (switch the Service selector) ##########
+$ kubectl apply -f 02-blue-green/deployment-blue.yaml -f 02-blue-green/deployment-green.yaml -f 02-blue-green/service-blue.yaml
+deployment.apps/app-blue created
+deployment.apps/app-green created
+service/myapp-service created
+
+$ kubectl rollout status deployment/app-blue --timeout=180s
+Waiting for deployment "app-blue" rollout to finish: 0 of 3 updated replicas are available...
+Waiting for deployment "app-blue" rollout to finish: 1 of 3 updated replicas are available...
+Waiting for deployment "app-blue" rollout to finish: 2 of 3 updated replicas are available...
+deployment "app-blue" successfully rolled out
+
+$ kubectl rollout status deployment/app-green --timeout=180s
+deployment "app-green" successfully rolled out
+
+$ kubectl get pods -l app=myapp -L slot,version
+NAME                         READY   STATUS    RESTARTS   AGE   SLOT    VERSION
+app-blue-59c5bdd66c-49v8c    1/1     Running   0          8s    blue    v1
+app-blue-59c5bdd66c-p5jn6    1/1     Running   0          8s    blue    v1
+app-blue-59c5bdd66c-qvnx8    1/1     Running   0          8s    blue    v1
+app-green-59c9cbf7dd-nv657   1/1     Running   0          8s    green   v2
+app-green-59c9cbf7dd-rscmm   1/1     Running   0          8s    green   v2
+app-green-59c9cbf7dd-zgkrc   1/1     Running   0          8s    green   v2
+
+$ kubectl get service myapp-service -o jsonpath="{.spec.selector}"; echo
+{"app":"myapp","slot":"blue"}
+
+$ (10 requests while the Service points to BLUE)
+     10 BLUE ENVIRONMENT
+
+$ kubectl apply -f 02-blue-green/service-green.yaml
+service/myapp-service configured
+
+$ sleep 5
+
+$ kubectl get service myapp-service -o jsonpath="{.spec.selector}"; echo
+{"app":"myapp","slot":"green"}
+
+$ (10 requests after switching the Service to GREEN)
+     10 GREEN ENVIRONMENT
+
+$ kubectl get endpoints myapp-service
+Warning: v1 Endpoints is deprecated in v1.33+; use discovery.k8s.io/v1 EndpointSlice
+NAME            ENDPOINTS                                        AGE
+myapp-service   10.244.0.101:80,10.244.0.103:80,10.244.0.98:80   13s
+
+$ kubectl delete -f 02-blue-green/deployment-blue.yaml -f 02-blue-green/deployment-green.yaml -f 02-blue-green/service-green.yaml
+deployment.apps "app-blue" deleted from default namespace
+deployment.apps "app-green" deleted from default namespace
+service "myapp-service" deleted from default namespace
+

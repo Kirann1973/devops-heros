@@ -1,0 +1,31 @@
+########## Pod lifecycle 05: CrashLoopBackOff (keeps exiting, restartPolicy Always) ##########
+$ kubectl apply -f pod-lifecycle/05-crashloopbackoff.yaml
+pod/lifecycle-crashloop created
+
+$ kubectl wait --for=jsonpath='{.status.containerStatuses[0].state.waiting.reason}'=CrashLoopBackOff pod/lifecycle-crashloop --timeout=180s
+pod/lifecycle-crashloop condition met
+
+$ kubectl get pod lifecycle-crashloop
+NAME                  READY   STATUS    RESTARTS      AGE
+lifecycle-crashloop   1/1     Running   2 (13s ago)   20s
+
+$ kubectl logs lifecycle-crashloop
+Application started
+
+$ details lifecycle-crashloop
+Status:           Running
+    State:          Running
+      Reason:       Error
+      Exit Code:    1
+    Ready:          True
+    Restart Count:  2
+Events (last 8):
+  Normal   Scheduled  20s               default-scheduler  Successfully assigned default/lifecycle-crashloop to minikube
+  Warning  BackOff    12s               kubelet            spec.containers{crashing-app}: Back-off restarting failed container crashing-app in pod lifecycle-crashloop_default(46d9b78d-47ac-4f4c-9d75-304716c24c93)
+  Normal   Pulled     0s (x3 over 20s)  kubelet            spec.containers{crashing-app}: Container image "busybox:1.36" already present on machine and can be accessed by the pod
+  Normal   Created    0s (x3 over 20s)  kubelet            spec.containers{crashing-app}: Container created
+  Normal   Started    0s (x3 over 20s)  kubelet            spec.containers{crashing-app}: Container started
+
+$ kubectl delete pod lifecycle-crashloop --grace-period=1
+pod "lifecycle-crashloop" deleted from default namespace
+

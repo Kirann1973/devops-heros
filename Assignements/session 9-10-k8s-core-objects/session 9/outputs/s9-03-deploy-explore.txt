@@ -1,0 +1,28 @@
+########## Session 9: Basics tutorial - create a Deployment and explore its Pods ##########
+$ kubectl create deployment hello-kiran --image=nginx:1.24-alpine
+deployment.apps/hello-kiran created
+
+$ kubectl rollout status deployment/hello-kiran --timeout=120s
+Waiting for deployment "hello-kiran" rollout to finish: 0 of 1 updated replicas are available...
+deployment "hello-kiran" successfully rolled out
+
+$ kubectl get deployments
+NAME          READY   UP-TO-DATE   AVAILABLE   AGE
+hello-kiran   1/1     1            1           0s
+
+$ kubectl get pods -l app=hello-kiran -o wide
+NAME                           READY   STATUS    RESTARTS   AGE   IP            NODE       NOMINATED NODE   READINESS GATES
+hello-kiran-84fb4bbcf9-f89n2   1/1     Running   0          1s    10.244.0.67   minikube   <none>           <none>
+
+$ kubectl exec hello-kiran-84fb4bbcf9-f89n2 -- nginx -v
+nginx version: nginx/1.24.0
+
+$ kubectl exec hello-kiran-84fb4bbcf9-f89n2 -- cat /etc/os-release | head -2
+NAME="Alpine Linux"
+ID=alpine
+
+$ kubectl logs hello-kiran-84fb4bbcf9-f89n2 --tail=3
+2026/10/17 19:43:27 [notice] 1#1: start worker processes
+2026/10/17 19:43:27 [notice] 1#1: start worker process 30
+2026/10/17 19:43:27 [notice] 1#1: start worker process 31
+

@@ -1,405 +1,74 @@
-# ☸️ Session 9–10 — Kubernetes Deployment Strategies
+# Sessions 9 and 10: Kubernetes Core Objects, Deployment Strategies and Pod Lifecycle
+
+| | |
+|---|---|
+| **Name** | Kiran N |
+| **Roll No.** | 10446 |
+| **Sessions** | 9 and 10 (taught together) |
+| **Environment** | Multipass Ubuntu VM (arm64) on Mac, Minikube v1.39.0, Kubernetes v1.37.0 |
+
+This folder holds both sessions. Each session has its own folder and its own readme with my commands, real outputs and screenshots.
 
 ---
 
-## 📌 Overview
+## [Session 9: Kubernetes Introduction, Architecture and Core Objects](session%209/readme.md)
 
-This session covers three important **Kubernetes deployment strategies** — Blue-Green, Canary, and Recreate. Each strategy is implemented using Kubernetes Deployments and Services, and tested on **Minikube**.
+| Task | Result |
+|------|--------|
+| Install Minikube and start a cluster | Node `minikube` Ready, control plane at `https://192.168.49.2:8443` |
+| Kubernetes architecture | apiserver, etcd, scheduler, controller-manager, kubelet, kube-proxy, containerd, CoreDNS explained with my `kube-system` pods |
+| Kubernetes Basics tutorial | Deployment `hello-kiran`: exposed (HTTP 200), scaled to 4, updated to nginx 1.25 and rolled back to 1.24 |
+| Core objects | Pod (2/2), ReplicaSet (self-healing tested), Deployment, DaemonSet, StatefulSet (`mysql-0`, `mysql-1` with Bound PVCs) |
 
-> **Name:** Kiran N
-> **Roll No.:** 24bcs10446
-> **Session:** 9–10 — Kubernetes Core Objects & Deployment Strategies
-
----
-
-## 🛠️ Commands & Concepts Used
-
-| Command / Concept                        | Description                                              |
-|------------------------------------------|----------------------------------------------------------|
-| `kubectl apply -f`                       | Create or update resources from a YAML file              |
-| `kubectl get pods --show-labels`         | List pods with their labels                              |
-| `kubectl scale deployment`               | Scale replicas up or down                                |
-| `kubectl rollout status`                 | Check the rollout status of a deployment                 |
-| `kubectl rollout undo`                   | Rollback a deployment to the previous revision           |
-| `kubectl delete -f`                      | Delete resources defined in a YAML file                  |
-| `minikube service --url`                 | Get the externally accessible URL for a service          |
-| Blue-Green Deployment                    | Instant traffic switch between two identical environments|
-| Canary Deployment                        | Gradual rollout to a subset of users                     |
-| Recreate Deployment                      | Full shutdown of v1 before starting v2                   |
+Files: [`session9_lab.sh`](session%209/session9_lab.sh), [`k8s-core-objects/`](session%209/k8s-core-objects/), [`class-practice/`](session%209/class-practice/), [`screenshots/`](session%209/screenshots/)
 
 ---
 
-## 📊 Strategy Comparison
+## [Session 10: Deployment Strategies and Pod Lifecycle](session%2010/readme.md)
 
-| Strategy       | Downtime | Resource Cost       | Rollback Speed | Best Use Case                        |
-|----------------|----------|---------------------|----------------|--------------------------------------|
-| Rolling Update | No       | Low                 | Fast           | Stateless applications               |
-| Blue-Green     | No       | High (2× resources) | Instant        | Critical production releases         |
-| Canary         | No       | Low                 | Fast           | Gradual production validation        |
-| Recreate       | Yes      | Lowest              | Moderate       | Database migrations, RWO volumes     |
+| Task | Result |
+|------|--------|
+| Rolling Update | 4 × v1 replaced by 4 × v2 one at a time, never fewer than 4 ready pods |
+| Blue-Green | 10/10 requests BLUE, switched the Service selector, then 10/10 GREEN |
+| Canary | 100 requests: 13 to canary v2, 87 to stable v1 |
+| Recreate | Old ReplicaSet 3 → 0 first, then new ReplicaSet 0 → 3 |
+| Pod lifecycle (12 cases) | Running, Pending, Succeeded, Failed, CrashLoopBackOff, ImagePullBackOff, readiness, liveness, startup, init container, sidecar, graceful termination |
 
----
-
-## 1️⃣ Blue-Green Deployment
-
-### What is Blue-Green Deployment?
-
-Blue-Green Deployment maintains two identical production environments:
-
-- **Blue** = Current live version
-- **Green** = New version being prepared
-
-Traffic is switched instantly by changing the Kubernetes Service selector.
+Files: [`strategies_lab.sh`](session%2010/strategies_lab.sh), [`pod_lifecycle_lab.sh`](session%2010/pod_lifecycle_lab.sh), [`01-rolling-update/`](session%2010/01-rolling-update/), [`02-blue-green/`](session%2010/02-blue-green/), [`03-canary/`](session%2010/03-canary/), [`04-recreate/`](session%2010/04-recreate/), [`pod-lifecycle/`](session%2010/pod-lifecycle/), [`screenshots/`](session%2010/screenshots/)
 
 ---
 
-### Architecture
+## Folder structure
 
-```text
-Users
-   |
-   v
-[Service]
-   |
-   +----> BLUE (v1)   <-- LIVE
-   |
-   +----> GREEN (v2)  <-- STANDBY
+```
+session 9-10-k8s-core-objects/
+├── readme.md            # this index
+├── session 9/
+│   ├── readme.md
+│   ├── session9_lab.sh
+│   ├── k8s-core-objects/
+│   ├── class-practice/
+│   └── screenshots/
+└── session 10/
+    ├── readme.md
+    ├── strategies_lab.sh
+    ├── pod_lifecycle_lab.sh
+    ├── 01-rolling-update/  02-blue-green/  03-canary/  04-recreate/
+    ├── pod-lifecycle/
+    └── screenshots/
 ```
 
-After switch:
-
-```text
-Users
-   |
-   v
-[Service]
-   |
-   +----> GREEN (v2)  <-- LIVE
-   |
-   +----> BLUE (v1)   <-- STANDBY
-```
-
----
-
-### Step 1 — Deploy Blue and Green Environments
+## How to run
 
 ```bash
-kubectl apply -f 02-blue-green/deployment-blue.yaml
-kubectl apply -f 02-blue-green/deployment-green.yaml
+minikube start --driver=docker --cpus=2 --memory=3500
 
-kubectl get pods -l app=myapp --show-labels
+cd "session 9"  && bash session9_lab.sh
+cd "../session 10" && bash strategies_lab.sh && bash pod_lifecycle_lab.sh
 ```
+
+Each script saves every section to `outputs/<section>.txt`.
 
 ---
 
-### Step 2 — Make BLUE Live
-
-```bash
-kubectl apply -f 02-blue-green/service-blue.yaml
-
-minikube service myapp-service --url
-```
-
-**Result:** BLUE environment becomes active.
-
-![Blue-Green Step 1](Screenshots/blue-green(1).png)
-
----
-
-### Step 3 — Switch Traffic to GREEN
-
-```bash
-kubectl apply -f 02-blue-green/service-green.yaml
-
-minikube service myapp-service --url
-```
-
-**Result:** Traffic is instantly redirected to GREEN.
-
-![Blue-Green Step 2](Screenshots/blue-green(2).png)
-
----
-
-### Step 4 — Rollback to BLUE
-
-```bash
-kubectl apply -f 02-blue-green/service-blue.yaml
-```
-
-**Result:** Traffic instantly returns to BLUE.
-
-![Blue-Green Rollback](Screenshots/blue-green(3).png)
-
----
-
-### Cleanup
-
-```bash
-kubectl delete -f 02-blue-green/service-blue.yaml
-kubectl delete -f 02-blue-green/deployment-blue.yaml
-kubectl delete -f 02-blue-green/deployment-green.yaml
-```
-
----
-
-## 2️⃣ Canary Deployment
-
-### What is Canary Deployment?
-
-Canary Deployment releases a new version to a small percentage of users before full rollout.
-
-```text
-9 Stable Pods (v1)
-1 Canary Pod  (v2)
-
-≈ 90% traffic → Stable
-≈ 10% traffic → Canary
-```
-
----
-
-### Architecture
-
-```text
-                    [SERVICE]
-                         |
-                         |
-        +----------------+----------------+
-        |                |                |
-        v                v                v
-    Stable v1       Stable v1       Canary v2
-
-Traffic Distribution:
-90% -> Stable (v1)
-10% -> Canary (v2)
-```
-
----
-
-### Step 1 — Deploy Stable Version
-
-```bash
-kubectl apply -f 03-canary/deployment-stable.yaml
-
-kubectl rollout status deployment/app-stable
-
-kubectl apply -f 03-canary/service.yaml
-```
-
----
-
-### Step 2 — Deploy Canary Version
-
-```bash
-kubectl apply -f 03-canary/deployment-canary.yaml
-
-kubectl get pods -l app=myapp-canary --show-labels
-```
-
-![Canary Step 1](Screenshots/canary(1).png)
-
----
-
-### Step 3 — Increase Canary Traffic
-
-```bash
-kubectl scale deployment app-canary --replicas=3
-
-kubectl scale deployment app-stable --replicas=7
-
-kubectl get endpoints myapp-canary-service
-```
-
-**Result:** Traffic distribution becomes approximately **70% Stable / 30% Canary**.
-
-![Canary Step 2](Screenshots/canary(2).png)
-
----
-
-### Step 4 — Promote Canary to Production
-
-```bash
-kubectl scale deployment app-canary --replicas=9
-
-kubectl scale deployment app-stable --replicas=0
-```
-
-Remove old Stable deployment:
-
-```bash
-kubectl delete deployment app-stable
-```
-
----
-
-### Rollback Canary
-
-```bash
-kubectl scale deployment app-canary --replicas=0
-
-kubectl scale deployment app-stable --replicas=9
-```
-
----
-
-### Cleanup
-
-```bash
-kubectl delete -f 03-canary/service.yaml
-kubectl delete -f 03-canary/deployment-canary.yaml
-kubectl delete -f 03-canary/deployment-stable.yaml
-```
-
----
-
-## 3️⃣ Recreate Deployment
-
-### What is Recreate Deployment?
-
-Recreate Deployment completely shuts down the old version before starting the new version.
-
-```text
-[v1] [v1] [v1]
-      |
-      v
-All Pods Terminated
-      |
-      v
-*** DOWNTIME ***
-      |
-      v
-[v2] [v2] [v2]
-```
-
----
-
-### Step 1 — Deploy Version 1
-
-```bash
-kubectl apply -f 04-recreate/deployment-v1.yaml
-
-kubectl apply -f 04-recreate/service.yaml
-
-kubectl get pods -l app=app-recreate
-```
-
----
-
-### Step 2 — Verify Service
-
-```bash
-minikube service app-recreate-service --url
-```
-
-![Recreate Step 1](Screenshots/recreate(1).png)
-
----
-
-### Step 3 — Trigger Recreate Update
-
-**Terminal 1** — Watch pods:
-
-```bash
-kubectl get pods -l app=app-recreate -w
-```
-
-**Terminal 2** — Apply v2:
-
-```bash
-kubectl apply -f 04-recreate/deployment-v2.yaml
-```
-
-![Recreate Step 2](Screenshots/recreate(2).png)
-
-![Recreate Step 3](Screenshots/recreate(3).png)
-
-**Observations:**
-
-- Existing v1 pods terminate first.
-- No pods are available temporarily (**downtime window**).
-- New v2 pods are created afterward.
-
----
-
-### Step 4 — Verify Version 2
-
-```bash
-minikube service app-recreate-service --url
-```
-
-![Recreate Step 4](Screenshots/recreate(4).png)
-
----
-
-### Rollback
-
-```bash
-kubectl rollout undo deployment/app-recreate
-
-kubectl rollout status deployment/app-recreate
-```
-
-**Output:**
-
-```text
-deployment.apps/app-recreate rolled back
-deployment "app-recreate" successfully rolled out
-```
-
-![Recreate Rollback](Screenshots/recreate(5).png)
-
----
-
-### Cleanup
-
-```bash
-kubectl delete -f 04-recreate/service.yaml
-kubectl delete -f 04-recreate/deployment-v2.yaml
-```
-
----
-
-## 📝 Key Learnings
-
-### Blue-Green Deployment
-
-| ✅ Advantages                                      | ❌ Disadvantages                    |
-|----------------------------------------------------|------------------------------------|
-| Zero downtime deployment                           | Requires double infrastructure     |
-| Instant rollback                                   | Higher resource consumption        |
-| Complete production testing before cutover          |                                    |
-
-### Canary Deployment
-
-| ✅ Advantages                                      | ❌ Disadvantages                           |
-|----------------------------------------------------|-------------------------------------------|
-| Gradual rollout                                    | Traffic distribution is approximate       |
-| Real user validation                               | Requires monitoring and metrics           |
-| Reduced production risk                            |                                           |
-
-### Recreate Deployment
-
-| ✅ Advantages                                      | ❌ Disadvantages                              |
-|----------------------------------------------------|----------------------------------------------|
-| Simple deployment process                          | Causes downtime                              |
-| Useful for schema migrations                       | Not suitable for highly available apps       |
-| Works with ReadWriteOnce volumes                   |                                              |
-
----
-
-## 🏁 Conclusion
-
-This project demonstrates three widely used Kubernetes deployment strategies:
-
-- **Blue-Green Deployment** — for instant switching and rollback.
-- **Canary Deployment** — for gradual and controlled releases.
-- **Recreate Deployment** — for applications that cannot run multiple versions simultaneously.
-
-Understanding these strategies helps DevOps engineers choose the appropriate deployment model based on availability requirements, rollback needs, infrastructure costs, and application architecture.
-
----
-
-## ✍️ Author
-
-**Kiran N**
-**Roll No.:** 24bcs10446
+**Kiran N | Roll No. 10446**

@@ -1,0 +1,38 @@
+########## Pod lifecycle 09: Startup probe (app needs 30s to start) ##########
+$ kubectl apply -f pod-lifecycle/09-startup.yaml
+pod/lifecycle-startup created
+
+$ kubectl wait --for=jsonpath="{.status.phase}"=Running pod/lifecycle-startup --timeout=180s
+pod/lifecycle-startup condition met
+
+$ kubectl get pod lifecycle-startup
+NAME                READY   STATUS    RESTARTS   AGE
+lifecycle-startup   0/1     Running   0          0s
+
+$ kubectl wait --for=condition=Ready pod/lifecycle-startup --timeout=90s
+pod/lifecycle-startup condition met
+
+$ kubectl get pod lifecycle-startup
+NAME                READY   STATUS    RESTARTS   AGE
+lifecycle-startup   1/1     Running   0          35s
+
+$ kubectl logs lifecycle-startup
+Application starting...
+Application started
+
+$ details lifecycle-startup
+Status:           Running
+    State:          Running
+    Ready:          True
+    Restart Count:  0
+    Startup:        exec [sh -c test -f /tmp/started] delay=0s timeout=1s period=5s #success=1 #failure=10
+Events (last 8):
+  Normal   Scheduled  35s               default-scheduler  Successfully assigned default/lifecycle-startup to minikube
+  Normal   Pulled     35s               kubelet            spec.containers{slow-app}: Container image "busybox:1.36" already present on machine and can be accessed by the pod
+  Normal   Created    35s               kubelet            spec.containers{slow-app}: Container created
+  Normal   Started    35s               kubelet            spec.containers{slow-app}: Container started
+  Warning  Unhealthy  5s (x6 over 30s)  kubelet            spec.containers{slow-app}: Startup probe failed:
+
+$ kubectl delete pod lifecycle-startup --grace-period=1
+pod "lifecycle-startup" deleted from default namespace
+

@@ -1,0 +1,40 @@
+########## Pod lifecycle 11: Multi-container pod (app + sidecar) ##########
+$ kubectl apply -f pod-lifecycle/11-multi-container.yaml
+pod/lifecycle-multi-container created
+
+$ kubectl wait --for=condition=Ready pod/lifecycle-multi-container --timeout=180s
+pod/lifecycle-multi-container condition met
+
+$ kubectl get pod lifecycle-multi-container
+NAME                        READY   STATUS    RESTARTS   AGE
+lifecycle-multi-container   2/2     Running   0          1s
+
+$ kubectl get pod lifecycle-multi-container -o jsonpath="{.spec.containers[*].name}"; echo
+app sidecar
+
+$ sleep 10
+
+$ kubectl logs lifecycle-multi-container -c sidecar
+Sidecar is running
+Sidecar is running
+
+$ details lifecycle-multi-container
+Status:           Running
+    State:          Running
+    Ready:          True
+    Restart Count:  0
+    State:          Running
+    Ready:          True
+    Restart Count:  0
+Events (last 8):
+  Normal  Scheduled  11s   default-scheduler  Successfully assigned default/lifecycle-multi-container to minikube
+  Normal  Pulled     11s   kubelet            spec.containers{app}: Container image "nginx:1.27" already present on machine and can be accessed by the pod
+  Normal  Created    11s   kubelet            spec.containers{app}: Container created
+  Normal  Started    11s   kubelet            spec.containers{app}: Container started
+  Normal  Pulled     11s   kubelet            spec.containers{sidecar}: Container image "busybox:1.36" already present on machine and can be accessed by the pod
+  Normal  Created    11s   kubelet            spec.containers{sidecar}: Container created
+  Normal  Started    10s   kubelet            spec.containers{sidecar}: Container started
+
+$ kubectl delete pod lifecycle-multi-container --grace-period=1
+pod "lifecycle-multi-container" deleted from default namespace
+

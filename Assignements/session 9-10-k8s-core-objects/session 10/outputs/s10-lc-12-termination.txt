@@ -1,0 +1,29 @@
+########## Pod lifecycle 12: Graceful termination (SIGTERM, 20s grace period) ##########
+$ kubectl apply -f pod-lifecycle/12-termination.yaml
+pod/lifecycle-termination created
+
+$ kubectl wait --for=condition=Ready pod/lifecycle-termination --timeout=180s
+pod/lifecycle-termination condition met
+
+$ kubectl get pod lifecycle-termination
+NAME                    READY   STATUS    RESTARTS   AGE
+lifecycle-termination   1/1     Running   0          1s
+
+$ kubectl delete pod lifecycle-termination --wait=false
+pod "lifecycle-termination" deleted from default namespace
+
+$ sleep 3
+
+$ kubectl get pod lifecycle-termination
+NAME                    READY   STATUS        RESTARTS   AGE
+lifecycle-termination   1/1     Terminating   0          4s
+
+$ kubectl logs lifecycle-termination
+Application running
+SIGTERM received; cleaning up...
+
+$ sleep 12
+
+$ kubectl get pod lifecycle-termination
+Error from server (NotFound): pods "lifecycle-termination" not found
+

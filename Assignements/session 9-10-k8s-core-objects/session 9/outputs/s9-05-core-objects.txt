@@ -1,0 +1,79 @@
+########## Session 9: Basic objects - Pod, ReplicaSet, Deployment, DaemonSet, StatefulSet ##########
+$ kubectl apply -f k8s-core-objects/
+daemonset.apps/node-exporter created
+deployment.apps/myapp created
+pod/mypod created
+replicaset.apps/myapp-rs created
+service/mysql created
+statefulset.apps/mysql created
+
+$ kubectl wait --for=condition=Ready pod/mypod --timeout=180s
+pod/mypod condition met
+
+$ kubectl rollout status deployment/myapp --timeout=180s
+deployment "myapp" successfully rolled out
+
+$ kubectl rollout status daemonset/node-exporter --timeout=180s
+daemon set "node-exporter" successfully rolled out
+
+$ kubectl rollout status statefulset/mysql --timeout=420s
+partitioned roll out complete: 2 new pods have been updated...
+
+$ kubectl get pods -o wide
+NAME                     READY   STATUS    RESTARTS   AGE   IP            NODE       NOMINATED NODE   READINESS GATES
+myapp-5b9587f95d-qpgl4   1/1     Running   0          15s   10.244.0.82   minikube   <none>           <none>
+myapp-5b9587f95d-vrgkr   1/1     Running   0          15s   10.244.0.80   minikube   <none>           <none>
+myapp-5b9587f95d-znwz6   1/1     Running   0          15s   10.244.0.81   minikube   <none>           <none>
+myapp-rs-2vgr2           1/1     Running   0          15s   10.244.0.85   minikube   <none>           <none>
+myapp-rs-j64gw           1/1     Running   0          15s   10.244.0.84   minikube   <none>           <none>
+myapp-rs-mfqp5           1/1     Running   0          15s   10.244.0.83   minikube   <none>           <none>
+mypod                    2/2     Running   0          15s   10.244.0.79   minikube   <none>           <none>
+mysql-0                  1/1     Running   0          15s   10.244.0.86   minikube   <none>           <none>
+mysql-1                  1/1     Running   0          14s   10.244.0.88   minikube   <none>           <none>
+node-exporter-4lmg2      1/1     Running   0          15s   10.244.0.87   minikube   <none>           <none>
+
+$ kubectl get rs,deploy,ds,sts,svc,pvc
+NAME                               DESIRED   CURRENT   READY   AGE
+replicaset.apps/myapp-5b9587f95d   3         3         3       15s
+replicaset.apps/myapp-rs           3         3         3       15s
+
+NAME                    READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/myapp   3/3     3            3           15s
+
+NAME                           DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE
+daemonset.apps/node-exporter   1         1         1       1            1           <none>          15s
+
+NAME                     READY   AGE
+statefulset.apps/mysql   2/2     15s
+
+NAME                 TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)    AGE
+service/kubernetes   ClusterIP   10.96.0.1    <none>        443/TCP    15m
+service/mysql        ClusterIP   None         <none>        3306/TCP   15s
+
+NAME                                                     STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+persistentvolumeclaim/mysql-persistent-storage-mysql-0   Bound    pvc-1b594124-873d-4917-9f21-16a4421397f6   1Gi        RWO            standard       <unset>                 15s
+persistentvolumeclaim/mysql-persistent-storage-mysql-1   Bound    pvc-bbabff51-ed80-480e-a49b-5d2978f8d0a2   1Gi        RWO            standard       <unset>                 14s
+
+$ kubectl delete pod $(kubectl get pods -l app=web -o jsonpath="{.items[0].metadata.name}") --wait=false
+pod "myapp-rs-2vgr2" deleted from default namespace
+
+$ sleep 5
+
+$ kubectl get pods -l app=web
+NAME             READY   STATUS    RESTARTS   AGE
+myapp-rs-hdnrg   1/1     Running   0          5s
+myapp-rs-j64gw   1/1     Running   0          20s
+myapp-rs-mfqp5   1/1     Running   0          20s
+
+$ kubectl delete -f k8s-core-objects/
+daemonset.apps "node-exporter" deleted from default namespace
+deployment.apps "myapp" deleted from default namespace
+pod "mypod" deleted from default namespace
+replicaset.apps "myapp-rs" deleted from default namespace
+service "mysql" deleted from default namespace
+statefulset.apps "mysql" deleted from default namespace
+
+$ kubectl delete pvc -l app=mysql
+persistentvolumeclaim "mysql-persistent-storage-mysql-0" deleted from default namespace
+persistentvolumeclaim "mysql-persistent-storage-mysql-1" deleted from default namespace
+

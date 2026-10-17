@@ -1,0 +1,112 @@
+########## Strategy 1: Rolling Update (maxSurge 1, maxUnavailable 0) ##########
+$ kubectl apply -f 01-rolling-update/deployment-v1.yaml -f 01-rolling-update/service.yaml
+deployment.apps/app-rolling created
+service/app-rolling-service created
+
+$ kubectl rollout status deployment/app-rolling --timeout=180s
+Waiting for deployment "app-rolling" rollout to finish: 0 of 4 updated replicas are available...
+Waiting for deployment "app-rolling" rollout to finish: 1 of 4 updated replicas are available...
+Waiting for deployment "app-rolling" rollout to finish: 2 of 4 updated replicas are available...
+Waiting for deployment "app-rolling" rollout to finish: 3 of 4 updated replicas are available...
+deployment "app-rolling" successfully rolled out
+
+$ kubectl get pods -l app=app-rolling -L version
+NAME                          READY   STATUS    RESTARTS   AGE   VERSION
+app-rolling-67d4c969d-56cn5   1/1     Running   0          6s    v1
+app-rolling-67d4c969d-7nqc5   1/1     Running   0          6s    v1
+app-rolling-67d4c969d-fpld9   1/1     Running   0          6s    v1
+app-rolling-67d4c969d-qq6jj   1/1     Running   0          6s    v1
+
+$ curl -s http://192.168.49.2:30010 | grep -oE 'VERSION: v[0-9]|Kiran N - Roll No 10446'
+VERSION: v1
+Kiran N - Roll No 10446
+
+$ kubectl apply -f 01-rolling-update/deployment-v2.yaml
+deployment.apps/app-rolling configured
+
+$ (pods during the update: old and new running side by side)
+--- t=2s
+app-rolling-67d4c969d-56cn5    1/1   Running             0     6s    v1
+app-rolling-67d4c969d-7nqc5    1/1   Running             0     6s    v1
+app-rolling-67d4c969d-fpld9    1/1   Running             0     6s    v1
+app-rolling-67d4c969d-qq6jj    1/1   Running             0     6s    v1
+app-rolling-86d7cb89c7-6dsfd   0/1   ContainerCreating   0     0s    v2
+--- t=4s
+app-rolling-67d4c969d-56cn5    1/1   Running   0     9s    v1
+app-rolling-67d4c969d-7nqc5    1/1   Running   0     9s    v1
+app-rolling-67d4c969d-fpld9    1/1   Running   0     9s    v1
+app-rolling-67d4c969d-qq6jj    1/1   Running   0     9s    v1
+app-rolling-86d7cb89c7-6dsfd   0/1   Running   0     3s    v2
+--- t=6s
+app-rolling-67d4c969d-56cn5    1/1   Running   0     11s   v1
+app-rolling-67d4c969d-7nqc5    1/1   Running   0     11s   v1
+app-rolling-67d4c969d-fpld9    1/1   Running   0     11s   v1
+app-rolling-67d4c969d-qq6jj    1/1   Running   0     11s   v1
+app-rolling-86d7cb89c7-6dsfd   0/1   Running   0     5s    v2
+--- t=8s
+app-rolling-67d4c969d-56cn5    0/1   Completed   0     13s   v1
+app-rolling-67d4c969d-7nqc5    1/1   Running     0     13s   v1
+app-rolling-67d4c969d-fpld9    1/1   Running     0     13s   v1
+app-rolling-67d4c969d-qq6jj    1/1   Running     0     13s   v1
+app-rolling-86d7cb89c7-4x6p8   0/1   Running     0     1s    v2
+app-rolling-86d7cb89c7-6dsfd   1/1   Running     0     7s    v2
+--- t=10s
+app-rolling-67d4c969d-7nqc5    1/1   Running   0     15s   v1
+app-rolling-67d4c969d-fpld9    1/1   Running   0     15s   v1
+app-rolling-67d4c969d-qq6jj    1/1   Running   0     15s   v1
+app-rolling-86d7cb89c7-4x6p8   0/1   Running   0     3s    v2
+app-rolling-86d7cb89c7-6dsfd   1/1   Running   0     9s    v2
+--- t=12s
+app-rolling-67d4c969d-7nqc5    1/1   Running   0     17s   v1
+app-rolling-67d4c969d-fpld9    1/1   Running   0     17s   v1
+app-rolling-67d4c969d-qq6jj    1/1   Running   0     17s   v1
+app-rolling-86d7cb89c7-4x6p8   0/1   Running   0     5s    v2
+app-rolling-86d7cb89c7-6dsfd   1/1   Running   0     11s   v2
+--- t=14s
+app-rolling-67d4c969d-7nqc5    1/1   Running   0     19s   v1
+app-rolling-67d4c969d-qq6jj    1/1   Running   0     19s   v1
+app-rolling-86d7cb89c7-4x6p8   1/1   Running   0     7s    v2
+app-rolling-86d7cb89c7-6dsfd   1/1   Running   0     13s   v2
+app-rolling-86d7cb89c7-b9dt8   0/1   Running   0     1s    v2
+--- t=16s
+app-rolling-67d4c969d-7nqc5    1/1   Running   0     21s   v1
+app-rolling-67d4c969d-qq6jj    1/1   Running   0     21s   v1
+app-rolling-86d7cb89c7-4x6p8   1/1   Running   0     9s    v2
+app-rolling-86d7cb89c7-6dsfd   1/1   Running   0     15s   v2
+app-rolling-86d7cb89c7-b9dt8   0/1   Running   0     3s    v2
+
+$ kubectl rollout status deployment/app-rolling --timeout=180s
+Waiting for deployment "app-rolling" rollout to finish: 3 out of 4 new replicas have been updated...
+Waiting for deployment "app-rolling" rollout to finish: 3 out of 4 new replicas have been updated...
+Waiting for deployment "app-rolling" rollout to finish: 3 out of 4 new replicas have been updated...
+Waiting for deployment "app-rolling" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "app-rolling" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "app-rolling" rollout to finish: 1 old replicas are pending termination...
+deployment "app-rolling" successfully rolled out
+
+$ kubectl get pods -l app=app-rolling -L version
+NAME                           READY   STATUS      RESTARTS   AGE   VERSION
+app-rolling-67d4c969d-7nqc5    0/1     Completed   0          30s   v1
+app-rolling-86d7cb89c7-4x6p8   1/1     Running     0          18s   v2
+app-rolling-86d7cb89c7-6dsfd   1/1     Running     0          24s   v2
+app-rolling-86d7cb89c7-b9dt8   1/1     Running     0          12s   v2
+app-rolling-86d7cb89c7-m24s4   1/1     Running     0          6s    v2
+
+$ curl -s http://192.168.49.2:30010 | grep -oE 'VERSION: v[0-9]'
+
+$ kubectl rollout history deployment/app-rolling
+deployment.apps/app-rolling 
+REVISION  CHANGE-CAUSE
+1         <none>
+2         <none>
+
+
+$ kubectl get rs -l app=app-rolling
+NAME                     DESIRED   CURRENT   READY   AGE
+app-rolling-67d4c969d    0         0         0       2m44s
+app-rolling-86d7cb89c7   4         4         4       2m38s
+
+$ kubectl delete -f 01-rolling-update/deployment-v2.yaml -f 01-rolling-update/service.yaml
+deployment.apps "app-rolling" deleted from default namespace
+service "app-rolling-service" deleted from default namespace
+

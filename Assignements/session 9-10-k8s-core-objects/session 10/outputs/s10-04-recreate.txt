@@ -1,0 +1,83 @@
+########## Strategy 4: Recreate (all old pods stop before new pods start) ##########
+$ kubectl apply -f 04-recreate/deployment-v1.yaml -f 04-recreate/service.yaml
+deployment.apps/app-recreate created
+service/app-recreate-service created
+
+$ kubectl rollout status deployment/app-recreate --timeout=180s
+Waiting for deployment "app-recreate" rollout to finish: 0 of 3 updated replicas are available...
+Waiting for deployment "app-recreate" rollout to finish: 1 of 3 updated replicas are available...
+Waiting for deployment "app-recreate" rollout to finish: 2 of 3 updated replicas are available...
+deployment "app-recreate" successfully rolled out
+
+$ sleep 5
+
+$ kubectl get pods -l app=app-recreate -L version
+NAME                            READY   STATUS    RESTARTS   AGE   VERSION
+app-recreate-7869bc4b7b-777fc   1/1     Running   0          5s    v1
+app-recreate-7869bc4b7b-lxtwz   1/1     Running   0          5s    v1
+app-recreate-7869bc4b7b-wsnjn   1/1     Running   0          5s    v1
+
+$ curl -s http://192.168.49.2:30040 | grep -oE 'VERSION: v[0-9]'
+VERSION: v1
+
+$ kubectl apply -f 04-recreate/deployment-v2.yaml
+deployment.apps/app-recreate configured
+
+$ (pods during the update: v1 terminates first, then v2 is created)
+--- t=2s
+app-recreate-7869bc4b7b-777fc   1/1   Terminating   0     6s    v1
+app-recreate-7869bc4b7b-lxtwz   0/1   Completed     0     6s    v1
+app-recreate-7869bc4b7b-wsnjn   1/1   Terminating   0     6s    v1
+--- t=4s
+app-recreate-84dcd486bd-8p8n9   1/1   Running   0     2s    v2
+app-recreate-84dcd486bd-twfqq   1/1   Running   0     2s    v2
+app-recreate-84dcd486bd-vxw7t   1/1   Running   0     2s    v2
+--- t=6s
+app-recreate-84dcd486bd-8p8n9   1/1   Running   0     4s    v2
+app-recreate-84dcd486bd-twfqq   1/1   Running   0     4s    v2
+app-recreate-84dcd486bd-vxw7t   1/1   Running   0     4s    v2
+--- t=8s
+app-recreate-84dcd486bd-8p8n9   1/1   Running   0     6s    v2
+app-recreate-84dcd486bd-twfqq   1/1   Running   0     6s    v2
+app-recreate-84dcd486bd-vxw7t   1/1   Running   0     6s    v2
+--- t=10s
+app-recreate-84dcd486bd-8p8n9   1/1   Running   0     8s    v2
+app-recreate-84dcd486bd-twfqq   1/1   Running   0     8s    v2
+app-recreate-84dcd486bd-vxw7t   1/1   Running   0     8s    v2
+--- t=12s
+app-recreate-84dcd486bd-8p8n9   1/1   Running   0     10s   v2
+app-recreate-84dcd486bd-twfqq   1/1   Running   0     10s   v2
+app-recreate-84dcd486bd-vxw7t   1/1   Running   0     10s   v2
+--- t=14s
+app-recreate-84dcd486bd-8p8n9   1/1   Running   0     13s   v2
+app-recreate-84dcd486bd-twfqq   1/1   Running   0     13s   v2
+app-recreate-84dcd486bd-vxw7t   1/1   Running   0     13s   v2
+--- t=16s
+app-recreate-84dcd486bd-8p8n9   1/1   Running   0     15s   v2
+app-recreate-84dcd486bd-twfqq   1/1   Running   0     15s   v2
+app-recreate-84dcd486bd-vxw7t   1/1   Running   0     15s   v2
+
+$ kubectl rollout status deployment/app-recreate --timeout=180s
+deployment "app-recreate" successfully rolled out
+
+$ kubectl get pods -l app=app-recreate -L version
+NAME                            READY   STATUS    RESTARTS   AGE   VERSION
+app-recreate-84dcd486bd-8p8n9   1/1     Running   0          17s   v2
+app-recreate-84dcd486bd-twfqq   1/1     Running   0          17s   v2
+app-recreate-84dcd486bd-vxw7t   1/1     Running   0          17s   v2
+
+$ sleep 3
+
+$ curl -s http://192.168.49.2:30040 | grep -oE 'VERSION: v[0-9]'
+VERSION: v2
+
+$ kubectl describe deployment app-recreate | grep -E "StrategyType|Scaled"
+StrategyType:       Recreate
+  Normal  ScalingReplicaSet  26s   deployment-controller  Scaled up replica set app-recreate-7869bc4b7b from 0 to 3
+  Normal  ScalingReplicaSet  20s   deployment-controller  Scaled down replica set app-recreate-7869bc4b7b from 3 to 0
+  Normal  ScalingReplicaSet  20s   deployment-controller  Scaled up replica set app-recreate-84dcd486bd from 0 to 3
+
+$ kubectl delete -f 04-recreate/deployment-v2.yaml -f 04-recreate/service.yaml
+deployment.apps "app-recreate" deleted from default namespace
+service "app-recreate-service" deleted from default namespace
+

@@ -1,0 +1,36 @@
+########## Pod lifecycle 08: Liveness probe (health file removed after 20s, kubelet restarts the container) ##########
+$ kubectl apply -f pod-lifecycle/08-liveness.yaml
+pod/lifecycle-liveness created
+
+$ kubectl wait --for=condition=Ready pod/lifecycle-liveness --timeout=180s
+pod/lifecycle-liveness condition met
+
+$ kubectl get pod lifecycle-liveness
+NAME                 READY   STATUS    RESTARTS   AGE
+lifecycle-liveness   1/1     Running   0          1s
+
+$ sleep 75
+
+$ kubectl get pod lifecycle-liveness
+NAME                 READY   STATUS    RESTARTS      AGE
+lifecycle-liveness   1/1     Running   1 (16s ago)   76s
+
+$ details lifecycle-liveness
+Status:           Running
+    State:          Running
+      Reason:       Error
+      Exit Code:    137
+    Ready:          True
+    Restart Count:  1
+    Liveness:       exec [sh -c test -f /tmp/healthy] delay=5s timeout=1s period=5s #success=1 #failure=2
+Events (last 8):
+  Normal   Scheduled  76s                default-scheduler  Successfully assigned default/lifecycle-liveness to minikube
+  Warning  Unhealthy  46s (x2 over 51s)  kubelet            spec.containers{app}: Liveness probe failed:
+  Normal   Killing    46s                kubelet            spec.containers{app}: Container app failed liveness probe, will be restarted
+  Normal   Pulled     16s (x2 over 76s)  kubelet            spec.containers{app}: Container image "busybox:1.36" already present on machine and can be accessed by the pod
+  Normal   Created    16s (x2 over 76s)  kubelet            spec.containers{app}: Container created
+  Normal   Started    16s (x2 over 76s)  kubelet            spec.containers{app}: Container started
+
+$ kubectl delete pod lifecycle-liveness --grace-period=1
+pod "lifecycle-liveness" deleted from default namespace
+

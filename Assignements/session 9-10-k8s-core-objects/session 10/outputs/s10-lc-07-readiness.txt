@@ -1,0 +1,32 @@
+########## Pod lifecycle 07: Readiness probe (Running but not Ready until the probe passes) ##########
+$ kubectl apply -f pod-lifecycle/07-readiness.yaml
+pod/lifecycle-readiness created
+
+$ kubectl wait --for=jsonpath="{.status.phase}"=Running pod/lifecycle-readiness --timeout=180s
+pod/lifecycle-readiness condition met
+
+$ kubectl get pod lifecycle-readiness
+NAME                  READY   STATUS    RESTARTS   AGE
+lifecycle-readiness   0/1     Running   0          0s
+
+$ sleep 12
+
+$ kubectl get pod lifecycle-readiness
+NAME                  READY   STATUS    RESTARTS   AGE
+lifecycle-readiness   1/1     Running   0          12s
+
+$ details lifecycle-readiness
+Status:           Running
+    State:          Running
+    Ready:          True
+    Restart Count:  0
+    Readiness:      http-get http://:80/ delay=5s timeout=1s period=5s #success=1 #failure=3
+Events (last 8):
+  Normal  Scheduled  13s   default-scheduler  Successfully assigned default/lifecycle-readiness to minikube
+  Normal  Pulled     13s   kubelet            spec.containers{nginx}: Container image "nginx:1.27" already present on machine and can be accessed by the pod
+  Normal  Created    13s   kubelet            spec.containers{nginx}: Container created
+  Normal  Started    13s   kubelet            spec.containers{nginx}: Container started
+
+$ kubectl delete pod lifecycle-readiness
+pod "lifecycle-readiness" deleted from default namespace
+
