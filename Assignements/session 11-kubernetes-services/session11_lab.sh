@@ -37,6 +37,7 @@ run 'kubectl delete -f 01-clusterip/'
 section s11-02-nodeport "Service 2: NodePort (node IP : 30080 from outside the cluster)"
 run 'kubectl apply -f 02-nodeport/'
 run 'kubectl rollout status deployment/web-app-nodeport --timeout=180s'
+sleep 5   # give kube-proxy a moment to add the new pods to the Service
 run 'kubectl get pods -l app=web-nodeport -o wide'
 run 'kubectl get service web-service-nodeport'
 run "curl -s http://$IP:30080"
@@ -49,6 +50,7 @@ run 'kubectl delete -f 02-nodeport/'
 section s11-03-loadbalancer "Service 3: LoadBalancer (external IP from minikube tunnel)"
 run 'kubectl apply -f 03-loadbalancer/'
 run 'kubectl rollout status deployment/web-app-loadbalancer --timeout=180s'
+sleep 5   # give kube-proxy a moment to add the new pods to the Service
 run 'kubectl get service web-service-loadbalancer'
 note 'EXTERNAL-IP is <pending>: there is no cloud load balancer yet, so start minikube tunnel'
 minikube tunnel >/tmp/s11-tunnel.log 2>&1 &
@@ -67,7 +69,7 @@ else
 fi
 LBPORT=$(kubectl get svc web-service-loadbalancer -o jsonpath='{.spec.ports[0].nodePort}')
 run "curl -s http://$IP:$LBPORT"
-kill $TPID >/dev/null 2>&1; sleep 2; minikube tunnel --cleanup >/dev/null 2>&1
+kill $TPID >/dev/null 2>&1; pkill -f "minikube tunnel" >/dev/null 2>&1; sleep 2
 run 'kubectl delete -f 03-loadbalancer/'
 
 # ---------------------------------------------------------------- 4. ExternalName
