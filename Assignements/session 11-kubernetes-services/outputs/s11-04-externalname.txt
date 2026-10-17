@@ -1,0 +1,33 @@
+########## Service 4: ExternalName (DNS alias to api.github.com) ##########
+$ kubectl apply -f 04-externalname/
+pod/dns-test-client created
+service/external-database-service created
+
+$ kubectl wait --for=condition=Ready pod/dns-test-client --timeout=180s
+pod/dns-test-client condition met
+
+$ kubectl get service external-database-service
+NAME                        TYPE           CLUSTER-IP   EXTERNAL-IP      PORT(S)   AGE
+external-database-service   ExternalName   <none>       api.github.com   <none>    1s
+
+$ kubectl exec dns-test-client -- nslookup external-database-service.default.svc.cluster.local
+Server:		10.96.0.10
+Address:	10.96.0.10:53
+
+external-database-service.default.svc.cluster.local	canonical name = api.github.com
+
+external-database-service.default.svc.cluster.local	canonical name = api.github.com
+Name:	api.github.com
+Address: 20.207.73.85
+
+
+$ kubectl exec dns-test-client -- curl -s -o /dev/null -w "HTTPS %{http_code} from %{remote_ip}\n" https://api.github.com/zen
+HTTPS 403 from 20.207.73.85
+
+$ kubectl get endpointslices -l kubernetes.io/service-name=external-database-service
+No resources found in default namespace.
+
+$ kubectl delete -f 04-externalname/ --grace-period=1
+pod "dns-test-client" deleted from default namespace
+service "external-database-service" deleted from default namespace
+

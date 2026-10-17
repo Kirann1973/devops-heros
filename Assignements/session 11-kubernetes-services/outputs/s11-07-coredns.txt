@@ -1,0 +1,87 @@
+########## CoreDNS: the cluster DNS server ##########
+$ kubectl get deployment coredns -n kube-system
+NAME      READY   UP-TO-DATE   AVAILABLE   AGE
+coredns   1/1     1            1           52m
+
+$ kubectl get pods -n kube-system -l k8s-app=kube-dns -o wide
+NAME                       READY   STATUS    RESTARTS   AGE   IP           NODE       NOMINATED NODE   READINESS GATES
+coredns-559f6c778d-x7k6w   1/1     Running   0          52m   10.244.0.2   minikube   <none>           <none>
+
+$ kubectl get service kube-dns -n kube-system
+NAME       TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)                  AGE
+kube-dns   ClusterIP   10.96.0.10   <none>        53/UDP,53/TCP,9153/TCP   52m
+
+$ kubectl get configmap coredns -n kube-system -o jsonpath="{.data.Corefile}"
+.:53 {
+    log
+    errors
+    health {
+       lameduck 5s
+    }
+    ready
+    kubernetes cluster.local in-addr.arpa ip6.arpa {
+       pods insecure
+       fallthrough in-addr.arpa ip6.arpa
+       ttl 30
+    }
+    prometheus :9153
+    hosts {
+       192.168.49.1 host.minikube.internal
+       fallthrough
+    }
+    forward . /etc/resolv.conf {
+       max_concurrent 1000
+    }
+    cache 30 {
+       disable success cluster.local
+       disable denial cluster.local
+    }
+    loop
+    reload
+    loadbalance
+}
+
+$ kubectl exec curl-test-pod -- nslookup kubernetes.default.svc.cluster.local
+Server:		10.96.0.10
+Address:	10.96.0.10:53
+
+Name:	kubernetes.default.svc.cluster.local
+Address: 10.96.0.1
+
+
+
+$ kubectl exec curl-test-pod -- nslookup yatri-backend-service
+Server:		10.96.0.10
+Address:	10.96.0.10:53
+
+** server can't find yatri-backend-service.cluster.local: NXDOMAIN
+
+Name:	yatri-backend-service.default.svc.cluster.local
+Address: 10.110.175.172
+
+** server can't find yatri-backend-service.svc.cluster.local: NXDOMAIN
+
+
+** server can't find yatri-backend-service.svc.cluster.local: NXDOMAIN
+
+** server can't find yatri-backend-service.cluster.local: NXDOMAIN
+
+command terminated with exit code 1
+
+$ kubectl exec curl-test-pod -- nslookup does-not-exist.default.svc.cluster.local
+Server:		10.96.0.10
+Address:	10.96.0.10:53
+
+** server can't find does-not-exist.default.svc.cluster.local: NXDOMAIN
+
+** server can't find does-not-exist.default.svc.cluster.local: NXDOMAIN
+
+command terminated with exit code 1
+
+$ kubectl logs -n kube-system -l k8s-app=kube-dns --tail=5
+[INFO] 10.244.0.165:39510 - 41615 "AAAA IN yatri-backend-service.default.svc.cluster.local. udp 65 false 512" NOERROR qr,aa,rd 158 0.000016542s
+[INFO] 10.244.0.165:39510 - 44615 "AAAA IN yatri-backend-service.svc.cluster.local. udp 57 false 512" NXDOMAIN qr,aa,rd 150 0.000018542s
+[INFO] 10.244.0.165:39510 - 41156 "A IN yatri-backend-service.cluster.local. udp 53 false 512" NXDOMAIN qr,aa,rd 146 0.000014209s
+[INFO] 10.244.0.165:39295 - 41728 "A IN does-not-exist.default.svc.cluster.local. udp 58 false 512" NXDOMAIN qr,aa,rd 151 0.000058875s
+[INFO] 10.244.0.165:39295 - 42145 "AAAA IN does-not-exist.default.svc.cluster.local. udp 58 false 512" NXDOMAIN qr,aa,rd 151 0.000106s
+

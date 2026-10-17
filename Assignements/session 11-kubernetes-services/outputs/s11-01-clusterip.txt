@@ -1,0 +1,45 @@
+########## Service 1: ClusterIP (internal only, port 8080 -> pod port 80) ##########
+$ kubectl apply -f 01-clusterip/
+deployment.apps/web-app-clusterip created
+pod/curl-client created
+service/web-service-clusterip created
+
+$ kubectl rollout status deployment/web-app-clusterip --timeout=180s
+Waiting for deployment "web-app-clusterip" rollout to finish: 0 of 3 updated replicas are available...
+Waiting for deployment "web-app-clusterip" rollout to finish: 1 of 3 updated replicas are available...
+Waiting for deployment "web-app-clusterip" rollout to finish: 2 of 3 updated replicas are available...
+deployment "web-app-clusterip" successfully rolled out
+
+$ kubectl wait --for=condition=Ready pod/curl-client --timeout=180s
+pod/curl-client condition met
+
+$ kubectl get pods -l app=web-clusterip -o wide
+NAME                                 READY   STATUS    RESTARTS   AGE   IP             NODE       NOMINATED NODE   READINESS GATES
+web-app-clusterip-7cf49ffb84-mpxv4   1/1     Running   0          1s    10.244.0.151   minikube   <none>           <none>
+web-app-clusterip-7cf49ffb84-q4clw   1/1     Running   0          1s    10.244.0.152   minikube   <none>           <none>
+web-app-clusterip-7cf49ffb84-sbnbp   1/1     Running   0          1s    10.244.0.153   minikube   <none>           <none>
+
+$ kubectl get service web-service-clusterip
+NAME                    TYPE        CLUSTER-IP    EXTERNAL-IP   PORT(S)    AGE
+web-service-clusterip   ClusterIP   10.98.42.88   <none>        8080/TCP   1s
+
+$ kubectl get endpointslices -l kubernetes.io/service-name=web-service-clusterip
+NAME                          ADDRESSTYPE   PORTS   ENDPOINTS                                AGE
+web-service-clusterip-t9dhk   IPv4          80      10.244.0.152,10.244.0.153,10.244.0.151   1s
+
+$ kubectl exec curl-client -- curl -s http://web-service-clusterip:8080
+Kiran N - Roll No 10446 | ClusterIP | pod: web-app-clusterip-7cf49ffb84-q4clw
+
+$ (12 requests from inside the cluster: the Service spreads them over the 3 pods)
+      6 Kiran N - Roll No 10446 | ClusterIP | pod: web-app-clusterip-7cf49ffb84-mpxv4
+      2 Kiran N - Roll No 10446 | ClusterIP | pod: web-app-clusterip-7cf49ffb84-q4clw
+      4 Kiran N - Roll No 10446 | ClusterIP | pod: web-app-clusterip-7cf49ffb84-sbnbp
+
+$ curl -s -m 3 http://10.98.42.88:8080 || echo "curl from the VM to 10.98.42.88:8080 failed: ClusterIP is not reachable from outside the cluster"
+curl from the VM to 10.98.42.88:8080 failed: ClusterIP is not reachable from outside the cluster
+
+$ kubectl delete -f 01-clusterip/
+deployment.apps "web-app-clusterip" deleted from default namespace
+pod "curl-client" deleted from default namespace
+service "web-service-clusterip" deleted from default namespace
+

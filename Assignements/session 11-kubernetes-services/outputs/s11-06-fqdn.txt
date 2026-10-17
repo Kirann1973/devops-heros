@@ -1,0 +1,59 @@
+########## FQDN: <service>.<namespace>.svc.cluster.local and cross-namespace access ##########
+$ kubectl apply -f deployment/ -f service/clusterip.yaml -f dns-test/
+deployment.apps/yatri-backend created
+service/yatri-backend-service created
+pod/curl-test-pod created
+
+$ kubectl rollout status deployment/yatri-backend --timeout=180s
+Waiting for deployment "yatri-backend" rollout to finish: 0 of 3 updated replicas are available...
+Waiting for deployment "yatri-backend" rollout to finish: 1 of 3 updated replicas are available...
+Waiting for deployment "yatri-backend" rollout to finish: 2 of 3 updated replicas are available...
+deployment "yatri-backend" successfully rolled out
+
+$ kubectl wait --for=condition=Ready pod/curl-test-pod --timeout=180s
+pod/curl-test-pod condition met
+
+$ kubectl get svc yatri-backend-service
+NAME                    TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)   AGE
+yatri-backend-service   ClusterIP   10.106.92.149   <none>        80/TCP    6s
+
+$ kubectl exec curl-test-pod -- cat /etc/resolv.conf
+search default.svc.cluster.local svc.cluster.local cluster.local
+nameserver 10.96.0.10
+options ndots:5
+
+$ kubectl exec curl-test-pod -- curl -s http://yatri-backend-service
+Backend v1.0.0 listening on port 5000 (Kiran N - 10446)
+
+$ kubectl exec curl-test-pod -- curl -s http://yatri-backend-service.default
+Backend v1.0.0 listening on port 5000 (Kiran N - 10446)
+
+$ kubectl exec curl-test-pod -- curl -s http://yatri-backend-service.default.svc
+Backend v1.0.0 listening on port 5000 (Kiran N - 10446)
+
+$ kubectl exec curl-test-pod -- curl -s http://yatri-backend-service.default.svc.cluster.local
+Backend v1.0.0 listening on port 5000 (Kiran N - 10446)
+
+$ kubectl create namespace kiran-dev
+namespace/kiran-dev created
+
+$ kubectl run dev-client -n kiran-dev --image=curlimages/curl:8.6.0 --restart=Never --command -- sleep 3600
+pod/dev-client created
+
+$ kubectl wait --for=condition=Ready pod/dev-client -n kiran-dev --timeout=180s
+pod/dev-client condition met
+
+$ (from namespace kiran-dev the short name does not work, the namespace must be added)
+$ kubectl exec -n kiran-dev dev-client -- curl -s -m 5 http://yatri-backend-service || echo "curl failed: name not found in kiran-dev"
+command terminated with exit code 28
+curl failed: name not found in kiran-dev
+
+$ kubectl exec -n kiran-dev dev-client -- curl -s http://yatri-backend-service.default
+Backend v1.0.0 listening on port 5000 (Kiran N - 10446)
+
+$ kubectl exec -n kiran-dev dev-client -- curl -s http://yatri-backend-service.default.svc.cluster.local/healthz
+{"status":"healthy","service":"yatri-backend"}
+
+$ kubectl delete namespace kiran-dev --wait=false
+namespace "kiran-dev" deleted
+

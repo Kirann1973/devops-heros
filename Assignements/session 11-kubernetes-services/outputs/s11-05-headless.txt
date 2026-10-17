@@ -1,0 +1,60 @@
+########## Service 5: Headless (clusterIP None, DNS returns every pod IP) ##########
+$ kubectl apply -f 05-headless/
+statefulset.apps/web-stateful created
+pod/headless-dns-client created
+service/web-service-headless created
+
+$ kubectl rollout status statefulset/web-stateful --timeout=180s
+Waiting for 3 pods to be ready...
+Waiting for 2 pods to be ready...
+Waiting for 2 pods to be ready...
+Waiting for 1 pods to be ready...
+Waiting for 1 pods to be ready...
+partitioned roll out complete: 3 new pods have been updated...
+
+$ kubectl wait --for=condition=Ready pod/headless-dns-client --timeout=180s
+pod/headless-dns-client condition met
+
+$ kubectl get pods -l app=web-headless -o wide
+NAME             READY   STATUS    RESTARTS   AGE   IP             NODE       NOMINATED NODE   READINESS GATES
+web-stateful-0   1/1     Running   0          2s    10.244.0.161   minikube   <none>           <none>
+web-stateful-1   1/1     Running   0          1s    10.244.0.162   minikube   <none>           <none>
+web-stateful-2   1/1     Running   0          1s    10.244.0.163   minikube   <none>           <none>
+
+$ kubectl get service web-service-headless
+NAME                   TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE
+web-service-headless   ClusterIP   None         <none>        80/TCP    2s
+
+$ kubectl exec headless-dns-client -- nslookup web-service-headless.default.svc.cluster.local
+Server:		10.96.0.10
+Address:	10.96.0.10:53
+
+
+Name:	web-service-headless.default.svc.cluster.local
+Address: 10.244.0.161
+Name:	web-service-headless.default.svc.cluster.local
+Address: 10.244.0.163
+Name:	web-service-headless.default.svc.cluster.local
+Address: 10.244.0.162
+
+
+$ kubectl exec headless-dns-client -- nslookup web-stateful-0.web-service-headless.default.svc.cluster.local
+Server:		10.96.0.10
+Address:	10.96.0.10:53
+
+
+Name:	web-stateful-0.web-service-headless.default.svc.cluster.local
+Address: 10.244.0.161
+
+
+$ kubectl exec headless-dns-client -- curl -s http://web-stateful-0.web-service-headless
+Kiran N - Roll No 10446 | Headless | pod: web-stateful-0
+
+$ kubectl exec headless-dns-client -- curl -s http://web-stateful-2.web-service-headless
+Kiran N - Roll No 10446 | Headless | pod: web-stateful-2
+
+$ kubectl delete -f 05-headless/ --grace-period=1
+statefulset.apps "web-stateful" deleted from default namespace
+pod "headless-dns-client" deleted from default namespace
+service "web-service-headless" deleted from default namespace
+

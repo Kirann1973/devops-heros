@@ -1,0 +1,35 @@
+########## Service 3: LoadBalancer (external IP from minikube tunnel) ##########
+$ kubectl apply -f 03-loadbalancer/
+deployment.apps/web-app-loadbalancer created
+service/web-service-loadbalancer created
+
+$ kubectl rollout status deployment/web-app-loadbalancer --timeout=180s
+Waiting for deployment "web-app-loadbalancer" rollout to finish: 0 of 3 updated replicas are available...
+Waiting for deployment "web-app-loadbalancer" rollout to finish: 1 of 3 updated replicas are available...
+Waiting for deployment "web-app-loadbalancer" rollout to finish: 2 of 3 updated replicas are available...
+deployment "web-app-loadbalancer" successfully rolled out
+
+$ kubectl get service web-service-loadbalancer
+NAME                       TYPE           CLUSTER-IP      EXTERNAL-IP   PORT(S)        AGE
+web-service-loadbalancer   LoadBalancer   10.107.242.44   <pending>     80:30127/TCP   6s
+
+$ (EXTERNAL-IP is <pending>: there is no cloud load balancer yet, so start minikube tunnel)
+$ kubectl get service web-service-loadbalancer
+NAME                       TYPE           CLUSTER-IP      EXTERNAL-IP     PORT(S)        AGE
+web-service-loadbalancer   LoadBalancer   10.107.242.44   10.107.242.44   80:30127/TCP   13s
+
+$ curl -s -m 5 http://10.107.242.44
+Kiran N - Roll No 10446 | LoadBalancer | pod: web-app-loadbalancer-69d64bf6cf-cpwfn
+
+$ (10 requests to the external IP http://10.107.242.44)
+      5 Kiran N - Roll No 10446 | LoadBalancer | pod: web-app-loadbalancer-69d64bf6cf-cpwfn
+      1 Kiran N - Roll No 10446 | LoadBalancer | pod: web-app-loadbalancer-69d64bf6cf-q2nmp
+      4 Kiran N - Roll No 10446 | LoadBalancer | pod: web-app-loadbalancer-69d64bf6cf-w6d9r
+
+$ curl -s http://192.168.49.2:30127
+Kiran N - Roll No 10446 | LoadBalancer | pod: web-app-loadbalancer-69d64bf6cf-cpwfn
+
+$ kubectl delete -f 03-loadbalancer/
+deployment.apps "web-app-loadbalancer" deleted from default namespace
+service "web-service-loadbalancer" deleted from default namespace
+

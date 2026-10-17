@@ -1,0 +1,42 @@
+########## Troubleshooting: Service with empty endpoints (selector mismatch) ##########
+$ kubectl apply -f troubleshooting/empty-endpoints.yaml
+service/broken-backend-service created
+
+$ kubectl get svc broken-backend-service
+NAME                     TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)   AGE
+broken-backend-service   ClusterIP   10.96.239.173   <none>        80/TCP    0s
+
+$ kubectl get endpointslices -l kubernetes.io/service-name=broken-backend-service
+NAME                           ADDRESSTYPE   PORTS     ENDPOINTS   AGE
+broken-backend-service-9mz6n   IPv4          <unset>   <unset>     0s
+
+$ kubectl exec curl-test-pod -- curl -s -m 5 http://broken-backend-service || echo "curl failed: no pods behind the Service"
+command terminated with exit code 7
+curl failed: no pods behind the Service
+
+$ kubectl get svc broken-backend-service -o jsonpath="{.spec.selector}"; echo
+{"app":"wrong-backend-name"}
+
+$ kubectl get pods -l tier=api --show-labels
+NAME                             READY   STATUS    RESTARTS   AGE   LABELS
+yatri-backend-6c94857959-gh878   1/1     Running   0          14s   app=yatri-backend,pod-template-hash=6c94857959,tier=api
+yatri-backend-6c94857959-gqdg7   1/1     Running   0          14s   app=yatri-backend,pod-template-hash=6c94857959,tier=api
+yatri-backend-6c94857959-k66b6   1/1     Running   0          14s   app=yatri-backend,pod-template-hash=6c94857959,tier=api
+
+$ (root cause: selector app=wrong-backend-name matches no pod. Fix: point it to app=yatri-backend)
+$ kubectl patch svc broken-backend-service -p '{"spec":{"selector":{"app":"yatri-backend"}}}'
+service/broken-backend-service patched
+
+$ kubectl get endpointslices -l kubernetes.io/service-name=broken-backend-service
+NAME                           ADDRESSTYPE   PORTS   ENDPOINTS                                AGE
+broken-backend-service-9mz6n   IPv4          5000    10.244.0.169,10.244.0.171,10.244.0.172   6s
+
+$ kubectl exec curl-test-pod -- curl -s http://broken-backend-service
+Backend v1.0.0 listening on port 5000 (Kiran N - 10446)
+
+$ kubectl delete -f troubleshooting/ -f service/clusterip.yaml -f deployment/ -f dns-test/ --grace-period=1
+service "broken-backend-service" deleted from default namespace
+service "yatri-backend-service" deleted from default namespace
+deployment.apps "yatri-backend" deleted from default namespace
+pod "curl-test-pod" deleted from default namespace
+

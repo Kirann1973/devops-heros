@@ -1,0 +1,33 @@
+########## Service 2: NodePort (node IP : 30080 from outside the cluster) ##########
+$ kubectl apply -f 02-nodeport/
+deployment.apps/web-app-nodeport created
+service/web-service-nodeport created
+
+$ kubectl rollout status deployment/web-app-nodeport --timeout=180s
+Waiting for deployment "web-app-nodeport" rollout to finish: 0 of 2 updated replicas are available...
+Waiting for deployment "web-app-nodeport" rollout to finish: 1 of 2 updated replicas are available...
+deployment "web-app-nodeport" successfully rolled out
+
+$ kubectl get pods -l app=web-nodeport -o wide
+NAME                                READY   STATUS    RESTARTS   AGE   IP             NODE       NOMINATED NODE   READINESS GATES
+web-app-nodeport-678b5bc457-btcnq   1/1     Running   0          6s    10.244.0.154   minikube   <none>           <none>
+web-app-nodeport-678b5bc457-jddqr   1/1     Running   0          6s    10.244.0.155   minikube   <none>           <none>
+
+$ kubectl get service web-service-nodeport
+NAME                   TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)        AGE
+web-service-nodeport   NodePort   10.100.64.160   <none>        80:30080/TCP   6s
+
+$ curl -s http://192.168.49.2:30080
+Kiran N - Roll No 10446 | NodePort | pod: web-app-nodeport-678b5bc457-btcnq
+
+$ (10 requests from the VM to http://192.168.49.2:30080)
+      5 Kiran N - Roll No 10446 | NodePort | pod: web-app-nodeport-678b5bc457-btcnq
+      5 Kiran N - Roll No 10446 | NodePort | pod: web-app-nodeport-678b5bc457-jddqr
+
+$ minikube service web-service-nodeport --url
+http://192.168.49.2:30080
+
+$ kubectl delete -f 02-nodeport/
+deployment.apps "web-app-nodeport" deleted from default namespace
+service "web-service-nodeport" deleted from default namespace
+
