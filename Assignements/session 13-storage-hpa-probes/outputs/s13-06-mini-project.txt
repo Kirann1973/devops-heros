@@ -1,0 +1,142 @@
+########## Task 3: Mini project - production web app with PVC, probes and HPA ##########
+$ minikube addons enable metrics-server
+* metrics-server is an addon maintained by Kubernetes. For any concerns contact minikube on GitHub.
+You can view the list of minikube maintainers at: https://github.com/kubernetes/minikube/blob/master/OWNERS
+  - Using image registry.k8s.io/metrics-server/metrics-server:v0.9.0
+* The 'metrics-server' addon is enabled
+
+$ kubectl apply -f mini-project/namespace.yaml
+namespace/production-webapp created
+
+$ kubectl apply -f mini-project/pvc.yaml -f mini-project/deployment.yaml -f mini-project/service.yaml -f mini-project/hpa.yaml
+persistentvolumeclaim/web-data created
+deployment.apps/web-app created
+service/web-service created
+horizontalpodautoscaler.autoscaling/web-app-hpa created
+
+$ kubectl rollout status deployment/web-app -n production-webapp --timeout=180s
+Waiting for deployment "web-app" rollout to finish: 0 of 2 updated replicas are available...
+Waiting for deployment "web-app" rollout to finish: 1 of 2 updated replicas are available...
+deployment "web-app" successfully rolled out
+
+$ kubectl get pvc,deploy,pods,svc -n production-webapp
+NAME                             STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+persistentvolumeclaim/web-data   Bound    pvc-6e9b902d-7030-4cfd-b9ff-f82338aa6b7c   500Mi      RWO            standard       <unset>                 9s
+
+NAME                      READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/web-app   2/2     2            2           9s
+
+NAME                          READY   STATUS    RESTARTS   AGE
+pod/web-app-d45775485-msq9k   1/1     Running   0          9s
+pod/web-app-d45775485-zqmmf   1/1     Running   0          9s
+
+NAME                  TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)   AGE
+service/web-service   ClusterIP   10.103.146.7   <none>        80/TCP    9s
+
+$ kubectl get pv | grep -E 'NAME|web-data'
+NAME                                       CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                        STORAGECLASS   VOLUMEATTRIBUTESCLASS   REASON   AGE
+pvc-6e9b902d-7030-4cfd-b9ff-f82338aa6b7c   500Mi      RWO            Delete           Bound    production-webapp/web-data   standard       <unset>                          9s
+
+$ kubectl describe deploy web-app -n production-webapp | grep -E 'Liveness|Readiness|Startup|Requests|Limits|cpu|memory|/data'
+    Limits:
+      cpu:     200m
+      memory:  128Mi
+    Requests:
+      cpu:        100m
+      memory:     64Mi
+    Liveness:     http-get http://:80/ delay=5s timeout=2s period=5s #success=1 #failure=3
+    Readiness:    http-get http://:80/ delay=5s timeout=2s period=5s #success=1 #failure=2
+    Startup:      http-get http://:80/ delay=0s timeout=1s period=2s #success=1 #failure=30
+      /data from persistent-storage (rw)
+
+$ (storage: write a file, delete ALL pods, read it from a new pod)
+$ kubectl exec -n production-webapp web-app-d45775485-msq9k -- sh -c 'echo "Student: Kiran N - Roll No 10446" > /data/student.txt; cat /data/student.txt'
+Student: Kiran N - Roll No 10446
+
+$ kubectl delete pods -n production-webapp -l app=web-app --grace-period=1
+pod "web-app-d45775485-msq9k" deleted from production-webapp namespace
+pod "web-app-d45775485-zqmmf" deleted from production-webapp namespace
+
+$ kubectl rollout status deployment/web-app -n production-webapp --timeout=180s
+Waiting for deployment "web-app" rollout to finish: 0 of 2 updated replicas are available...
+Waiting for deployment "web-app" rollout to finish: 1 of 2 updated replicas are available...
+deployment "web-app" successfully rolled out
+
+$ kubectl get pods -n production-webapp -l app=web-app
+NAME                      READY   STATUS    RESTARTS   AGE
+web-app-d45775485-gn747   1/1     Running   0          9s
+web-app-d45775485-rdzdk   1/1     Running   0          9s
+
+$ kubectl exec -n production-webapp web-app-d45775485-gn747 -- cat /data/student.txt
+Student: Kiran N - Roll No 10446
+
+$ (service: reach the app through web-service)
+$ kubectl get endpoints web-service -n production-webapp
+Warning: v1 Endpoints is deprecated in v1.33+; use discovery.k8s.io/v1 EndpointSlice
+NAME          ENDPOINTS                         AGE
+web-service   10.244.0.211:80,10.244.0.212:80   19s
+
+$ kubectl exec -n production-webapp deploy/web-app -- curl -s http://web-service | grep '<title>'
+<title>Welcome to nginx!</title>
+
+$ (HPA: generate load and watch it scale (min 2, max 5, target 50% CPU))
+$ kubectl get hpa -n production-webapp
+NAME          REFERENCE            TARGETS       MINPODS   MAXPODS   REPLICAS   AGE
+web-app-hpa   Deployment/web-app   cpu: 1%/50%   2         5         2          2m17s
+
+$ kubectl run load-generator -n production-webapp --image=busybox:1.36 --restart=Never -- /bin/sh -c 'for i in $(seq 1 20); do (while true; do wget -q -O- http://web-service >/dev/null; done) & done; wait'
+pod/load-generator created
+
++   0s  cpu    1% / 50%  replicas  2  (desired 2)
++  17s  cpu    1% / 50%  replicas  2  (desired 2)
++  33s  cpu    1% / 50%  replicas  2  (desired 2)
++  50s  cpu    1% / 50%  replicas  2  (desired 2)
++  66s  cpu   51% / 50%  replicas  2  (desired 2)
++  82s  cpu   51% / 50%  replicas  2  (desired 2)
++  99s  cpu   51% / 50%  replicas  2  (desired 2)
++ 115s  cpu   51% / 50%  replicas  2  (desired 2)
++ 132s  cpu   58% / 50%  replicas  2  (desired 3)
++ 148s  cpu   58% / 50%  replicas  3  (desired 3)
++ 165s  cpu   58% / 50%  replicas  3  (desired 3)
++ 181s  cpu   47% / 50%  replicas  3  (desired 3)
++ 198s  cpu   47% / 50%  replicas  3  (desired 3)
++ 215s  cpu   47% / 50%  replicas  3  (desired 3)
++ 231s  cpu   47% / 50%  replicas  3  (desired 3)
++ 248s  cpu   41% / 50%  replicas  3  (desired 3)
++ 265s  cpu   41% / 50%  replicas  3  (desired 3)
++ 283s  cpu   41% / 50%  replicas  3  (desired 3)
+
+$ kubectl get hpa -n production-webapp
+NAME          REFERENCE            TARGETS        MINPODS   MAXPODS   REPLICAS   AGE
+web-app-hpa   Deployment/web-app   cpu: 42%/50%   2         5         3          7m21s
+
+$ kubectl top pods -n production-webapp
+NAME                      CPU(cores)   MEMORY(bytes)   
+load-generator            1299m        11Mi            
+web-app-d45775485-692h9   42m          3Mi             
+web-app-d45775485-gn747   42m          3Mi             
+web-app-d45775485-rdzdk   42m          3Mi             
+
+$ kubectl get pods -n production-webapp -o wide
+NAME                      READY   STATUS    RESTARTS   AGE     IP             NODE       NOMINATED NODE   READINESS GATES
+load-generator            1/1     Running   0          5m4s    10.244.0.213   minikube   <none>           <none>
+web-app-d45775485-692h9   1/1     Running   0          3m6s    10.244.0.214   minikube   <none>           <none>
+web-app-d45775485-gn747   1/1     Running   0          7m12s   10.244.0.211   minikube   <none>           <none>
+web-app-d45775485-rdzdk   1/1     Running   0          7m12s   10.244.0.212   minikube   <none>           <none>
+
+$ kubectl describe hpa web-app-hpa -n production-webapp | grep -A30 '^Events'
+Events:
+  Type     Reason                        Age                    From                       Message
+  ----     ------                        ----                   ----                       -------
+  Warning  FailedGetResourceMetric       6m21s (x5 over 7m21s)  horizontal-pod-autoscaler  failed to get cpu utilization: unable to get metrics for resource cpu: no metrics returned from resource metrics API
+  Warning  FailedComputeMetricsReplicas  6m21s (x5 over 7m21s)  horizontal-pod-autoscaler  invalid metrics (1 invalid out of 1), first error is: failed to get cpu resource metric value: failed to get cpu utilization: unable to get metrics for resource cpu: no metrics returned from resource metrics API
+  Warning  FailedGetResourceMetric       5m21s (x4 over 6m6s)   horizontal-pod-autoscaler  failed to get cpu utilization: did not receive metrics for targeted pods (pods might be unready)
+  Warning  FailedComputeMetricsReplicas  5m21s (x4 over 6m6s)   horizontal-pod-autoscaler  invalid metrics (1 invalid out of 1), first error is: failed to get cpu resource metric value: failed to get cpu utilization: did not receive metrics for targeted pods (pods might be unready)
+  Normal   SuccessfulRescale             3m6s                   horizontal-pod-autoscaler  New size: 3; reason: cpu resource utilization (percentage of request) above target
+
+$ kubectl delete pod load-generator -n production-webapp --grace-period=1
+pod "load-generator" deleted from production-webapp namespace
+
+$ kubectl delete namespace production-webapp
+namespace "production-webapp" deleted
+

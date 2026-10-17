@@ -1,0 +1,79 @@
+########## Task 1: Volumes - emptyDir (lives with the Pod) and hostPath (lives on the node) ##########
+$ (emptyDir: write a file, delete the Pod, create it again)
+$ kubectl apply -f 01-volumes/emptydir-pod.yaml
+pod/emptydir-demo created
+
+$ kubectl wait --for=condition=Ready pod/emptydir-demo --timeout=120s
+pod/emptydir-demo condition met
+
+$ kubectl exec emptydir-demo -- sh -c 'echo "Kiran N - Roll No 10446" > /data/kiran.txt; ls -l /data; cat /data/kiran.txt'
+total 4
+-rw-r--r-- 1 root root 24 Oct 17 20:50 kiran.txt
+Kiran N - Roll No 10446
+
+$ (restarting the container keeps emptyDir data, deleting the Pod does not)
+$ kubectl delete pod emptydir-demo --grace-period=1
+pod "emptydir-demo" deleted from default namespace
+
+$ kubectl apply -f 01-volumes/emptydir-pod.yaml
+pod/emptydir-demo created
+
+$ kubectl wait --for=condition=Ready pod/emptydir-demo --timeout=120s
+pod/emptydir-demo condition met
+
+$ kubectl exec emptydir-demo -- sh -c 'ls -l /data; cat /data/kiran.txt'
+total 0
+cat: /data/kiran.txt: No such file or directory
+command terminated with exit code 1
+
+$ (emptyDir shared by two containers in the same Pod)
+$ kubectl apply -f 01-volumes/emptydir-shared.yaml
+pod/emptydir-shared created
+
+$ kubectl wait --for=condition=Ready pod/emptydir-shared --timeout=120s
+pod/emptydir-shared condition met
+
+$ kubectl get pod emptydir-shared
+NAME              READY   STATUS    RESTARTS   AGE
+emptydir-shared   2/2     Running   0          11s
+
+$ kubectl exec emptydir-shared -c web -- curl -s localhost
+20:50:37 written by writer container (Kiran N - 10446)
+20:50:42 written by writer container (Kiran N - 10446)
+20:50:47 written by writer container (Kiran N - 10446)
+
+$ (hostPath: same test, the file is on the minikube node in /tmp/hostpath-data)
+$ kubectl apply -f 01-volumes/hostpath-pod.yaml
+pod/hostpath-demo created
+
+$ kubectl wait --for=condition=Ready pod/hostpath-demo --timeout=120s
+pod/hostpath-demo condition met
+
+$ kubectl exec hostpath-demo -- sh -c 'echo "Kiran N - Roll No 10446 (hostPath)" > /data/kiran.txt; cat /data/kiran.txt'
+Kiran N - Roll No 10446 (hostPath)
+
+$ kubectl delete pod hostpath-demo --grace-period=1
+pod "hostpath-demo" deleted from default namespace
+
+$ kubectl apply -f 01-volumes/hostpath-pod.yaml
+pod/hostpath-demo created
+
+$ kubectl wait --for=condition=Ready pod/hostpath-demo --timeout=120s
+pod/hostpath-demo condition met
+
+$ kubectl exec hostpath-demo -- cat /data/kiran.txt
+Kiran N - Roll No 10446 (hostPath)
+
+$ kubectl get pod hostpath-demo -o wide
+NAME            READY   STATUS    RESTARTS   AGE   IP             NODE       NOMINATED NODE   READINESS GATES
+hostpath-demo   1/1     Running   0          1s    10.244.0.189   minikube   <none>           <none>
+
+$ minikube ssh -- ls -l /tmp/hostpath-data
+total 4
+-rw-r--r-- 1 root root 35 Oct 17 20:50 kiran.txt
+
+$ kubectl delete pod emptydir-demo emptydir-shared hostpath-demo --grace-period=1
+pod "emptydir-demo" deleted from default namespace
+pod "emptydir-shared" deleted from default namespace
+pod "hostpath-demo" deleted from default namespace
+

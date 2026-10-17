@@ -1,0 +1,154 @@
+########## Task 2: HPA - deploy, configure, load, watch it scale up and down ##########
+$ minikube addons enable metrics-server
+* metrics-server is an addon maintained by Kubernetes. For any concerns contact minikube on GitHub.
+You can view the list of minikube maintainers at: https://github.com/kubernetes/minikube/blob/master/OWNERS
+  - Using image registry.k8s.io/metrics-server/metrics-server:v0.9.0
+* The 'metrics-server' addon is enabled
+
+$ kubectl top nodes
+NAME       CPU(cores)   CPU(%)   MEMORY(bytes)   MEMORY(%)   
+minikube   179m         8%       1189Mi          20%         
+
+$ kubectl apply -f hpa/backend-deployment.yaml -f hpa/backend-service.yaml
+deployment.apps/yatri-backend created
+service/yatri-backend-service created
+
+$ kubectl rollout status deployment/yatri-backend --timeout=180s
+Waiting for deployment "yatri-backend" rollout to finish: 0 of 2 updated replicas are available...
+Waiting for deployment "yatri-backend" rollout to finish: 1 of 2 updated replicas are available...
+deployment "yatri-backend" successfully rolled out
+
+$ kubectl apply -f hpa/hpa-backend.yaml
+horizontalpodautoscaler.autoscaling/yatri-backend-hpa created
+
+$ kubectl get hpa
+NAME                REFERENCE                  TARGETS       MINPODS   MAXPODS   REPLICAS   AGE
+yatri-backend-hpa   Deployment/yatri-backend   cpu: 2%/50%   2         10        2          2m3s
+
+$ kubectl get pods -l app=yatri-backend
+NAME                            READY   STATUS    RESTARTS   AGE
+yatri-backend-78d5b4789-4654m   1/1     Running   0          2m3s
+yatri-backend-78d5b4789-xs5hf   1/1     Running   0          2m3s
+
+$ kubectl top pods -l app=yatri-backend
+NAME                            CPU(cores)   MEMORY(bytes)   
+yatri-backend-78d5b4789-4654m   1m           11Mi            
+yatri-backend-78d5b4789-xs5hf   1m           11Mi            
+
+$ kubectl exec deploy/yatri-backend -- wget -qO- http://yatri-backend-service/
+Yatri backend | Kiran N - Roll No 10446 | pod: yatri-backend-78d5b4789-4654m
+
+$ (start the load generator (10 parallel loops inside the cluster))
+$ kubectl apply -f hpa/load-generator.yaml
+pod/load-generator created
+
+$ kubectl wait --for=condition=Ready pod/load-generator --timeout=120s
+pod/load-generator condition met
+
+$ kubectl logs load-generator
+load-generator (Kiran N - 10446): 10 workers -> http://yatri-backend-service/
+
+$ (scale up, checked every 15 seconds)
++   1s  cpu    2% / 50%  replicas  2  (desired 2)
++  16s  cpu    2% / 50%  replicas  2  (desired 2)
++  32s  cpu    2% / 50%  replicas  2  (desired 2)
++  48s  cpu    2% / 50%  replicas  2  (desired 2)
++  64s  cpu  207% / 50%  replicas  2  (desired 4)
++  80s  cpu  207% / 50%  replicas  4  (desired 8)
++  96s  cpu  207% / 50%  replicas  8  (desired 9)
++ 112s  cpu  207% / 50%  replicas  9  (desired 9)
++ 129s  cpu  144% / 50%  replicas  9  (desired 10)
++ 145s  cpu  144% / 50%  replicas 10  (desired 10)
+
+$ kubectl get hpa
+NAME                REFERENCE                  TARGETS         MINPODS   MAXPODS   REPLICAS   AGE
+yatri-backend-hpa   Deployment/yatri-backend   cpu: 144%/50%   2         10        10         4m50s
+
+$ kubectl top pods -l app=yatri-backend
+NAME                            CPU(cores)   MEMORY(bytes)   
+yatri-backend-78d5b4789-454c4   61m          11Mi            
+yatri-backend-78d5b4789-4654m   80m          11Mi            
+yatri-backend-78d5b4789-5r5bw   74m          11Mi            
+yatri-backend-78d5b4789-bgxbs   64m          11Mi            
+yatri-backend-78d5b4789-jrw22   61m          11Mi            
+yatri-backend-78d5b4789-nkbrc   75m          11Mi            
+yatri-backend-78d5b4789-p4whm   64m          11Mi            
+yatri-backend-78d5b4789-vx2fr   61m          11Mi            
+yatri-backend-78d5b4789-xs5hf   91m          11Mi            
+
+$ kubectl get pods -l app=yatri-backend -o wide
+NAME                            READY   STATUS    RESTARTS   AGE     IP             NODE       NOMINATED NODE   READINESS GATES
+yatri-backend-78d5b4789-454c4   1/1     Running   0          96s     10.244.0.202   minikube   <none>           <none>
+yatri-backend-78d5b4789-4654m   1/1     Running   0          4m51s   10.244.0.194   minikube   <none>           <none>
+yatri-backend-78d5b4789-56tdg   1/1     Running   0          51s     10.244.0.204   minikube   <none>           <none>
+yatri-backend-78d5b4789-5r5bw   1/1     Running   0          111s    10.244.0.198   minikube   <none>           <none>
+yatri-backend-78d5b4789-bgxbs   1/1     Running   0          96s     10.244.0.201   minikube   <none>           <none>
+yatri-backend-78d5b4789-jrw22   1/1     Running   0          81s     10.244.0.203   minikube   <none>           <none>
+yatri-backend-78d5b4789-nkbrc   1/1     Running   0          111s    10.244.0.197   minikube   <none>           <none>
+yatri-backend-78d5b4789-p4whm   1/1     Running   0          96s     10.244.0.200   minikube   <none>           <none>
+yatri-backend-78d5b4789-vx2fr   1/1     Running   0          96s     10.244.0.199   minikube   <none>           <none>
+yatri-backend-78d5b4789-xs5hf   1/1     Running   0          4m51s   10.244.0.195   minikube   <none>           <none>
+
+$ kubectl describe hpa yatri-backend-hpa | grep -A12 "^Metrics"
+Metrics:                                               ( current / target )
+  resource cpu on pods  (as a percentage of request):  144% (72m) / 50%
+Min replicas:                                          2
+Max replicas:                                          10
+Deployment pods:                                       10 current / 10 desired
+Conditions:
+  Type            Status  Reason            Message
+  ----            ------  ------            -------
+  AbleToScale     True    ReadyForNewScale  recommended size matches current size
+  ScalingActive   True    ValidMetricFound  the HPA was able to successfully calculate a replica count from cpu resource utilization (percentage of request)
+  ScalingLimited  True    TooManyReplicas   the desired replica count is more than the maximum replica count
+  ScaledToZero    False   NotScaledToZero   the HPA controller did not scale the workload to zero
+Events:
+
+$ (stop the load)
+$ kubectl delete -f hpa/load-generator.yaml --grace-period=1
+pod "load-generator" deleted from default namespace
+
+$ (scale down, checked every 30 seconds (the HPA waits 5 minutes before removing pods))
++   1s  cpu  144% / 50%  replicas 10  (desired 10)
++  31s  cpu  101% / 50%  replicas 10  (desired 10)
++  62s  cpu  101% / 50%  replicas 10  (desired 10)
++  92s  cpu    8% / 50%  replicas 10  (desired 10)
++ 122s  cpu    8% / 50%  replicas 10  (desired 10)
++ 153s  cpu    2% / 50%  replicas 10  (desired 10)
++ 183s  cpu    2% / 50%  replicas 10  (desired 10)
++ 213s  cpu    2% / 50%  replicas 10  (desired 10)
++ 244s  cpu    2% / 50%  replicas 10  (desired 10)
++ 274s  cpu    2% / 50%  replicas 10  (desired 10)
++ 305s  cpu    2% / 50%  replicas 10  (desired 10)
++ 335s  cpu    2% / 50%  replicas 10  (desired 10)
++ 365s  cpu    2% / 50%  replicas 10  (desired 2)
++ 396s  cpu    2% / 50%  replicas  2  (desired 2)
+
+$ kubectl get hpa
+NAME                REFERENCE                  TARGETS       MINPODS   MAXPODS   REPLICAS   AGE
+yatri-backend-hpa   Deployment/yatri-backend   cpu: 2%/50%   2         10        2          11m
+
+$ kubectl get pods -l app=yatri-backend
+NAME                            READY   STATUS    RESTARTS   AGE
+yatri-backend-78d5b4789-4654m   1/1     Running   0          11m
+yatri-backend-78d5b4789-xs5hf   1/1     Running   0          11m
+
+$ kubectl describe hpa yatri-backend-hpa | grep -A30 "^Events"
+Events:
+  Type     Reason                        Age                  From                       Message
+  ----     ------                        ----                 ----                       -------
+  Warning  FailedGetResourceMetric       10m (x4 over 11m)    horizontal-pod-autoscaler  failed to get cpu utilization: unable to get metrics for resource cpu: no metrics returned from resource metrics API
+  Warning  FailedComputeMetricsReplicas  10m (x4 over 11m)    horizontal-pod-autoscaler  invalid metrics (1 invalid out of 1), first error is: failed to get cpu resource metric value: failed to get cpu utilization: unable to get metrics for resource cpu: no metrics returned from resource metrics API
+  Warning  FailedGetResourceMetric       9m45s (x4 over 10m)  horizontal-pod-autoscaler  failed to get cpu utilization: did not receive metrics for targeted pods (pods might be unready)
+  Warning  FailedComputeMetricsReplicas  9m45s (x4 over 10m)  horizontal-pod-autoscaler  invalid metrics (1 invalid out of 1), first error is: failed to get cpu resource metric value: failed to get cpu utilization: did not receive metrics for targeted pods (pods might be unready)
+  Normal   SuccessfulRescale             8m30s                horizontal-pod-autoscaler  New size: 4; reason: cpu resource utilization (percentage of request) above target
+  Normal   SuccessfulRescale             8m15s                horizontal-pod-autoscaler  New size: 8; reason: cpu resource utilization (percentage of request) above target
+  Normal   SuccessfulRescale             8m                   horizontal-pod-autoscaler  New size: 9; reason:
+  Normal   SuccessfulRescale             7m30s                horizontal-pod-autoscaler  New size: 10; reason: cpu resource utilization (percentage of request) above target
+  Normal   SuccessfulRescale             44s                  horizontal-pod-autoscaler  New size: 2; reason: All metrics below target
+
+$ kubectl delete -f hpa/hpa-backend.yaml -f hpa/backend-service.yaml -f hpa/backend-deployment.yaml
+horizontalpodautoscaler.autoscaling "yatri-backend-hpa" deleted from default namespace
+service "yatri-backend-service" deleted from default namespace
+deployment.apps "yatri-backend" deleted from default namespace
+

@@ -1,0 +1,42 @@
+########## Task 1: StorageClass and dynamic provisioning ##########
+$ kubectl get storageclass
+NAME                 PROVISIONER                RECLAIMPOLICY   VOLUMEBINDINGMODE   ALLOWVOLUMEEXPANSION   AGE
+standard (default)   k8s.io/minikube-hostpath   Delete          Immediate           false                  82m
+
+$ kubectl describe storageclass standard | grep -E "^Name|IsDefaultClass|Provisioner|ReclaimPolicy|VolumeBindingMode"
+Name:            standard
+IsDefaultClass:  Yes
+Provisioner:           k8s.io/minikube-hostpath
+ReclaimPolicy:         Delete
+VolumeBindingMode:     Immediate
+
+$ (before: no PV exists)
+$ kubectl get pv
+No resources found
+
+$ kubectl apply -f 03-storageclass/pvc.yaml
+persistentvolumeclaim/dynamic-pvc created
+
+$ kubectl wait --for=jsonpath="{.status.phase}"=Bound pvc/dynamic-pvc --timeout=60s
+persistentvolumeclaim/dynamic-pvc condition met
+
+$ kubectl get pvc dynamic-pvc
+NAME          STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+dynamic-pvc   Bound    pvc-b4a3f8c5-9ead-49a7-b70a-23e34d84ce28   500Mi      RWO            standard       <unset>                 1s
+
+$ (after: the provisioner created a PV by itself)
+$ kubectl get pv
+NAME                                       CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                 STORAGECLASS   VOLUMEATTRIBUTESCLASS   REASON   AGE
+pvc-b4a3f8c5-9ead-49a7-b70a-23e34d84ce28   500Mi      RWO            Delete           Bound    default/dynamic-pvc   standard       <unset>                          1s
+
+$ kubectl get pv -o custom-columns=NAME:.metadata.name,CLAIM:.spec.claimRef.name,CLASS:.spec.storageClassName,RECLAIM:.spec.persistentVolumeReclaimPolicy,PATH-ON-NODE:.spec.hostPath.path
+NAME                                       CLAIM         CLASS      RECLAIM   PATH-ON-NODE
+pvc-b4a3f8c5-9ead-49a7-b70a-23e34d84ce28   dynamic-pvc   standard   Delete    /tmp/hostpath-provisioner/default/dynamic-pvc
+
+$ (reclaim policy Delete: deleting the claim deletes the PV too)
+$ kubectl delete pvc dynamic-pvc
+persistentvolumeclaim "dynamic-pvc" deleted from default namespace
+
+$ kubectl get pv
+No resources found
+

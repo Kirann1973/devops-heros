@@ -1,0 +1,82 @@
+########## Task 1: PersistentVolume and PersistentVolumeClaim ##########
+$ kubectl apply -f 02-persistent-storage/pv.yaml -f 02-persistent-storage/pvc.yaml
+persistentvolume/student-pv created
+persistentvolumeclaim/student-pvc created
+
+$ kubectl get pv,pvc
+NAME                                                        CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS      CLAIM                 STORAGECLASS   VOLUMEATTRIBUTESCLASS   REASON   AGE
+persistentvolume/pvc-ebd382ec-21fd-4c17-b9d5-06496789623d   500Mi      RWO            Delete           Bound       default/student-pvc   standard       <unset>                          5s
+persistentvolume/student-pv                                 1Gi        RWO            Retain           Available                                        <unset>                          5s
+
+NAME                                STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+persistentvolumeclaim/student-pvc   Bound    pvc-ebd382ec-21fd-4c17-b9d5-06496789623d   500Mi      RWO            standard       <unset>                 5s
+
+$ kubectl get pvc student-pvc -o jsonpath="storageClassName={.spec.storageClassName}  volumeName={.spec.volumeName}"; echo
+storageClassName=standard  volumeName=pvc-ebd382ec-21fd-4c17-b9d5-06496789623d
+
+$ (data written through the PVC survives deleting the Pod)
+$ kubectl apply -f 02-persistent-storage/pod.yaml
+pod/storage-demo created
+
+$ kubectl wait --for=condition=Ready pod/storage-demo --timeout=120s
+pod/storage-demo condition met
+
+$ kubectl exec storage-demo -- sh -c 'echo "Kiran N - Roll No 10446 (PVC)" > /data/kiran.txt; cat /data/kiran.txt'
+Kiran N - Roll No 10446 (PVC)
+
+$ kubectl delete pod storage-demo --grace-period=1
+pod "storage-demo" deleted from default namespace
+
+$ kubectl apply -f 02-persistent-storage/pod.yaml
+pod/storage-demo created
+
+$ kubectl wait --for=condition=Ready pod/storage-demo --timeout=120s
+pod/storage-demo condition met
+
+$ kubectl exec storage-demo -- cat /data/kiran.txt
+Kiran N - Roll No 10446 (PVC)
+
+$ (static binding: a claim with storageClassName "" binds to the hand-made PV student-pv)
+$ kubectl apply -f 02-persistent-storage/static-pvc.yaml
+persistentvolumeclaim/student-static-pvc created
+
+$ kubectl get pv student-pv
+NAME         CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                        STORAGECLASS   VOLUMEATTRIBUTESCLASS   REASON   AGE
+student-pv   1Gi        RWO            Retain           Bound    default/student-static-pvc                  <unset>                          13s
+
+$ kubectl get pvc student-static-pvc
+NAME                 STATUS   VOLUME       CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE
+student-static-pvc   Bound    student-pv   1Gi        RWO                           <unset>                 5s
+
+$ kubectl apply -f 02-persistent-storage/static-pod.yaml
+pod/static-pv-demo created
+
+$ kubectl wait --for=condition=Ready pod/static-pv-demo --timeout=120s
+pod/static-pv-demo condition met
+
+$ kubectl exec static-pv-demo -- sh -c 'echo "Kiran N - Roll No 10446 (static PV)" > /data/kiran.txt'
+
+$ minikube ssh -- cat /tmp/student-data/kiran.txt
+Kiran N - Roll No 10446 (static PV)
+
+$ (reclaim policy Retain: deleting the claim keeps the PV and its data (status Released))
+$ kubectl delete pod static-pv-demo storage-demo --grace-period=1
+pod "static-pv-demo" deleted from default namespace
+pod "storage-demo" deleted from default namespace
+
+$ kubectl delete pvc student-static-pvc
+persistentvolumeclaim "student-static-pvc" deleted from default namespace
+
+$ kubectl get pv student-pv
+NAME         CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS     CLAIM                        STORAGECLASS   VOLUMEATTRIBUTESCLASS   REASON   AGE
+student-pv   1Gi        RWO            Retain           Released   default/student-static-pvc                  <unset>                          18s
+
+$ minikube ssh -- cat /tmp/student-data/kiran.txt
+Kiran N - Roll No 10446 (static PV)
+
+$ kubectl delete pvc student-pvc
+persistentvolumeclaim "student-pvc" deleted from default namespace
+
+$ kubectl delete pv student-pv
+persistentvolume "student-pv" deleted
+

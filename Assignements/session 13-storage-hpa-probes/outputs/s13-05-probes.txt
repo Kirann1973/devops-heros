@@ -1,0 +1,128 @@
+########## Probes - liveness restarts, readiness removes from the Service, startup protects slow apps ##########
+$ (LIVENESS: break the page, the kubelet restarts the container)
+$ kubectl apply -f 05-probes/liveness.yaml
+pod/liveness-demo created
+
+$ kubectl wait --for=condition=Ready pod/liveness-demo --timeout=120s
+pod/liveness-demo condition met
+
+$ kubectl describe pod liveness-demo | grep -E "Liveness"
+    Liveness:       http-get http://:80/ delay=5s timeout=2s period=5s #success=1 #failure=3
+
+$ kubectl exec liveness-demo -- rm /usr/share/nginx/html/index.html
+
+$ kubectl exec liveness-demo -- curl -s -o /dev/null -w "GET / -> HTTP %{http_code}\n" localhost
+GET / -> HTTP 403
+
+$ kubectl get pod liveness-demo
+NAME            READY   STATUS    RESTARTS     AGE
+liveness-demo   1/1     Running   1 (1s ago)   16s
+
+$ kubectl describe pod liveness-demo | grep -A30 "^Events" | grep -E "Unhealthy|Killing|Pulled|Started" 
+  Normal   Pulled     1s (x2 over 16s)  kubelet            spec.containers{nginx}: Container image "nginx:1.27" already present on machine and can be accessed by the pod
+  Normal   Started    1s (x2 over 16s)  kubelet            spec.containers{nginx}: Container started
+  Warning  Unhealthy  1s (x3 over 11s)  kubelet            spec.containers{nginx}: Liveness probe failed: HTTP probe failed with statuscode: 403
+  Normal   Killing    1s                kubelet            spec.containers{nginx}: Container nginx failed liveness probe, will be restarted
+
+$ (the new container starts from the image again, so index.html is back)
+$ kubectl exec liveness-demo -- curl -s -o /dev/null -w "GET / -> HTTP %{http_code}\n" localhost
+GET / -> HTTP 200
+
+$ (READINESS: break the page, the Pod keeps running but leaves the Service)
+$ kubectl apply -f 05-probes/readiness.yaml
+pod/readiness-demo created
+
+$ kubectl wait --for=condition=Ready pod/readiness-demo --timeout=120s
+pod/readiness-demo condition met
+
+$ kubectl exec readiness-demo -- sh -c 'echo "Kiran N - Roll No 10446 | readiness-demo" > /usr/share/nginx/html/index.html'
+
+$ kubectl expose pod readiness-demo --port=80
+service/readiness-demo exposed
+
+$ kubectl get endpoints readiness-demo
+Warning: v1 Endpoints is deprecated in v1.33+; use discovery.k8s.io/v1 EndpointSlice
+NAME             ENDPOINTS         AGE
+readiness-demo   10.244.0.206:80   4s
+
+$ kubectl exec liveness-demo -- curl -s http://readiness-demo
+Kiran N - Roll No 10446 | readiness-demo
+
+$ kubectl exec readiness-demo -- rm /usr/share/nginx/html/index.html
+
+$ kubectl get pod readiness-demo
+NAME             READY   STATUS    RESTARTS   AGE
+readiness-demo   0/1     Running   0          23s
+
+$ kubectl get endpoints readiness-demo
+Warning: v1 Endpoints is deprecated in v1.33+; use discovery.k8s.io/v1 EndpointSlice
+NAME             ENDPOINTS   AGE
+readiness-demo               17s
+
+$ kubectl exec liveness-demo -- curl -s -m 3 http://readiness-demo || echo "curl failed: no ready pod behind the Service"
+command terminated with exit code 7
+curl failed: no ready pod behind the Service
+
+$ kubectl describe pod readiness-demo | grep -A30 "^Events" | grep Unhealthy
+  Warning  Unhealthy  3s (x4 over 13s)  kubelet            spec.containers{nginx}: Readiness probe failed: HTTP probe failed with statuscode: 403
+
+$ (fix the page: the Pod becomes Ready again without any restart)
+$ kubectl exec readiness-demo -- sh -c 'echo "Kiran N - Roll No 10446 | readiness-demo (fixed)" > /usr/share/nginx/html/index.html'
+
+$ kubectl get pod readiness-demo
+NAME             READY   STATUS    RESTARTS   AGE
+readiness-demo   1/1     Running   0          28s
+
+$ kubectl get endpoints readiness-demo
+Warning: v1 Endpoints is deprecated in v1.33+; use discovery.k8s.io/v1 EndpointSlice
+NAME             ENDPOINTS         AGE
+readiness-demo   10.244.0.206:80   22s
+
+$ kubectl exec liveness-demo -- curl -s http://readiness-demo
+Kiran N - Roll No 10446 | readiness-demo (fixed)
+
+$ (STARTUP: an app that needs 20 seconds to start)
+$ kubectl apply -f 05-probes/startup.yaml
+pod/startup-demo created
+
+$ kubectl wait --for=condition=Ready pod/startup-demo --timeout=120s
+pod/startup-demo condition met
+
+$ kubectl describe pod startup-demo | grep -E "Startup|Liveness|Readiness"
+    Liveness:       http-get http://:80/ delay=0s timeout=1s period=5s #success=1 #failure=3
+    Readiness:      http-get http://:80/ delay=0s timeout=1s period=5s #success=1 #failure=3
+    Startup:        http-get http://:80/ delay=0s timeout=1s period=2s #success=1 #failure=30
+
+$ kubectl apply -f 05-probes/startup-slow.yaml
+pod/startup-slow-demo created
+
++  0s  startup-slow-demo   0/1   ContainerCreating   0     1s
++  4s  startup-slow-demo   0/1   Running   0     5s
++  8s  startup-slow-demo   0/1   Running   0     9s
++ 12s  startup-slow-demo   0/1   Running   0     13s
++ 16s  startup-slow-demo   0/1   Running   0     17s
++ 20s  startup-slow-demo   0/1   Running   0     22s
++ 24s  startup-slow-demo   1/1   Running   0     26s
+
+$ kubectl logs startup-slow-demo | head -3
+warming up for 20 seconds...
+starting nginx
+2026/10/17 21:05:07 [notice] 1#1: using the "epoll" event method
+
+$ kubectl describe pod startup-slow-demo | grep -A30 "^Events" | grep -E "Unhealthy|Started"
+  Normal   Started    25s                kubelet            spec.containers{nginx}: Container started
+  Warning  Unhealthy  5s (x10 over 23s)  kubelet            spec.containers{nginx}: Startup probe failed: Get "http://10.244.0.208:80/": dial tcp 10.244.0.208:80: connect: connection refused
+
+$ kubectl get pod startup-slow-demo
+NAME                READY   STATUS    RESTARTS   AGE
+startup-slow-demo   1/1     Running   0          26s
+
+$ kubectl delete pod liveness-demo readiness-demo startup-demo startup-slow-demo --grace-period=1
+pod "liveness-demo" deleted from default namespace
+pod "readiness-demo" deleted from default namespace
+pod "startup-demo" deleted from default namespace
+pod "startup-slow-demo" deleted from default namespace
+
+$ kubectl delete svc readiness-demo
+service "readiness-demo" deleted from default namespace
+
