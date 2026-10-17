@@ -21,7 +21,7 @@ run 'kubectl get nodes -o wide'
 
 section s9-02-architecture "Session 9: Kubernetes architecture - control plane and node components"
 run 'kubectl get pods -n kube-system -o wide'
-run 'kubectl describe node minikube | grep -E "Roles|Kubelet Version|Kube-Proxy Version|Container Runtime|OS Image|Architecture"'
+run 'kubectl describe node minikube | grep -E "Roles|Kubelet Version|Container Runtime|OS Image|Architecture"'
 run 'kubectl get namespaces'
 
 section s9-03-deploy-explore "Session 9: Basics tutorial - create a Deployment and explore its Pods"
@@ -38,7 +38,9 @@ section s9-04-expose-scale-update "Session 9: Basics tutorial - expose, scale, u
 run 'kubectl expose deployment hello-kiran --type=NodePort --port=80'
 run 'kubectl get service hello-kiran'
 PORT=$(kubectl get service hello-kiran -o jsonpath='{.spec.ports[0].nodePort}')
-run "curl -sI http://$IP:$PORT | head -2"
+sleep 5
+run "curl -s -o /dev/null -w 'HTTP %{http_code}\\n' http://$IP:$PORT"
+run "curl -s http://$IP:$PORT | grep '<title>'"
 run 'kubectl scale deployment hello-kiran --replicas=4'
 run 'kubectl rollout status deployment/hello-kiran --timeout=120s'
 run 'kubectl get pods -l app=hello-kiran'

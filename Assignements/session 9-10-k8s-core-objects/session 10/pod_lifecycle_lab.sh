@@ -52,9 +52,8 @@ run 'kubectl delete pod lifecycle-failed'
 section s10-lc-05-crashloopbackoff "Pod lifecycle 05: CrashLoopBackOff (keeps exiting, restartPolicy Always)"
 run "kubectl apply -f $L/05-crashloopbackoff.yaml"
 run "kubectl wait --for=jsonpath='{.status.containerStatuses[0].state.waiting.reason}'=CrashLoopBackOff pod/lifecycle-crashloop --timeout=180s"
-run 'sleep 20'
 run 'kubectl get pod lifecycle-crashloop'
-run 'kubectl logs lifecycle-crashloop --previous'
+run 'kubectl logs lifecycle-crashloop'
 run 'details lifecycle-crashloop'
 run 'kubectl delete pod lifecycle-crashloop --grace-period=1'
 
@@ -78,7 +77,7 @@ section s10-lc-08-liveness "Pod lifecycle 08: Liveness probe (health file remove
 run "kubectl apply -f $L/08-liveness.yaml"
 run 'kubectl wait --for=condition=Ready pod/lifecycle-liveness --timeout=180s'
 run 'kubectl get pod lifecycle-liveness'
-run 'sleep 45'
+run 'sleep 75'
 run 'kubectl get pod lifecycle-liveness'
 run 'details lifecycle-liveness'
 run 'kubectl delete pod lifecycle-liveness --grace-period=1'

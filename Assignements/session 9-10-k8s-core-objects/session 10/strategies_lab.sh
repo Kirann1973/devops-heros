@@ -14,7 +14,7 @@ watch_pods() { for i in $(seq 1 "$2"); do echo "--- t=$((i*2))s" | tee -a "$OUT"
 traffic() { for i in $(seq 1 "$2"); do curl -s "$1" | grep -oE "VERSION: v[0-9]|BLUE ENVIRONMENT|GREEN ENVIRONMENT|STABLE v1|CANARY v2"; done | sort | uniq -c; }
 
 IP=$(minikube ip)
-kubectl delete -f 01-rolling-update/ -f 02-blue-green/ -f 03-canary/ -f 04-recreate/ --ignore-not-found >/dev/null 2>&1
+kubectl delete deployment,service -l 'app in (app-rolling,myapp,myapp-canary,app-recreate)' --ignore-not-found >/dev/null 2>&1
 kubectl wait --for=delete pod -l 'app in (app-rolling,myapp,myapp-canary,app-recreate)' --timeout=120s >/dev/null 2>&1
 
 # ---------------------------------------------------------------- 1. Rolling update
@@ -31,7 +31,7 @@ run 'kubectl get pods -l app=app-rolling -L version'
 run "curl -s http://$IP:30010 | grep -oE 'VERSION: v[0-9]'"
 run 'kubectl rollout history deployment/app-rolling'
 run 'kubectl get rs -l app=app-rolling'
-run 'kubectl delete -f 01-rolling-update/'
+run 'kubectl delete -f 01-rolling-update/deployment-v2.yaml -f 01-rolling-update/service.yaml'
 
 # ---------------------------------------------------------------- 2. Blue-green
 section s10-02-blue-green "Strategy 2: Blue-Green (switch the Service selector)"
@@ -43,11 +43,12 @@ run 'kubectl get service myapp-service -o jsonpath="{.spec.selector}"; echo'
 echo "\$ (10 requests while the Service points to BLUE)" | tee -a "$OUT"
 traffic "http://$IP:30020" 10 | tee -a "$OUT"; echo | tee -a "$OUT"
 run 'kubectl apply -f 02-blue-green/service-green.yaml'
+run 'sleep 5'
 run 'kubectl get service myapp-service -o jsonpath="{.spec.selector}"; echo'
 echo "\$ (10 requests after switching the Service to GREEN)" | tee -a "$OUT"
 traffic "http://$IP:30020" 10 | tee -a "$OUT"; echo | tee -a "$OUT"
 run 'kubectl get endpoints myapp-service'
-run 'kubectl delete -f 02-blue-green/'
+run 'kubectl delete -f 02-blue-green/deployment-blue.yaml -f 02-blue-green/deployment-green.yaml -f 02-blue-green/service-green.yaml'
 
 # ---------------------------------------------------------------- 3. Canary
 section s10-03-canary "Strategy 3: Canary (9 stable + 1 canary = about 10% traffic)"
@@ -64,6 +65,7 @@ run 'kubectl delete -f 03-canary/'
 section s10-04-recreate "Strategy 4: Recreate (all old pods stop before new pods start)"
 run 'kubectl apply -f 04-recreate/deployment-v1.yaml -f 04-recreate/service.yaml'
 run 'kubectl rollout status deployment/app-recreate --timeout=180s'
+run 'sleep 5'
 run 'kubectl get pods -l app=app-recreate -L version'
 run "curl -s http://$IP:30040 | grep -oE 'VERSION: v[0-9]'"
 run 'kubectl apply -f 04-recreate/deployment-v2.yaml'
@@ -71,8 +73,9 @@ echo "\$ (pods during the update: v1 terminates first, then v2 is created)" | te
 watch_pods app=app-recreate 8
 run 'kubectl rollout status deployment/app-recreate --timeout=180s'
 run 'kubectl get pods -l app=app-recreate -L version'
+run 'sleep 3'
 run "curl -s http://$IP:30040 | grep -oE 'VERSION: v[0-9]'"
 run 'kubectl describe deployment app-recreate | grep -E "StrategyType|Scaled"'
-run 'kubectl delete -f 04-recreate/'
+run 'kubectl delete -f 04-recreate/deployment-v2.yaml -f 04-recreate/service.yaml'
 
 echo "Saved each strategy to $OUTDIR/"
