@@ -1,0 +1,147 @@
+$ hostname
+ubuntu
+
+$ hostname -I
+192.168.252.2 fd06:e601:dcfc:37a9:5054:ff:fe0c:679b 
+
+$ ip addr show
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host noprefixroute 
+       valid_lft forever preferred_lft forever
+2: enp0s1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast state UP group default qlen 1000
+    link/ether 52:54:00:0c:67:9b brd ff:ff:ff:ff:ff:ff
+    altname enx5254000c679b
+    inet 192.168.252.2/24 metric 100 brd 192.168.252.255 scope global dynamic enp0s1
+       valid_lft 1932sec preferred_lft 1932sec
+    inet6 fd06:e601:dcfc:37a9:5054:ff:fe0c:679b/64 scope global dynamic mngtmpaddr noprefixroute 
+       valid_lft 2591961sec preferred_lft 604761sec
+    inet6 fe80::5054:ff:fe0c:679b/64 scope link proto kernel_ll 
+       valid_lft forever preferred_lft forever
+
+$ ip route
+default via 192.168.252.1 dev enp0s1 proto dhcp src 192.168.252.2 metric 100 
+192.168.252.0/24 dev enp0s1 proto kernel scope link src 192.168.252.2 metric 100 
+192.168.252.1 dev enp0s1 proto dhcp scope link src 192.168.252.2 metric 100 
+
+$ cat /etc/resolv.conf
+# This is /run/systemd/resolve/stub-resolv.conf managed by man:systemd-resolved(8).
+# Do not edit.
+#
+# This file might be symlinked as /etc/resolv.conf. If you're looking at
+# /etc/resolv.conf and seeing this text, you have followed the symlink.
+#
+# This is a dynamic resolv.conf file for connecting local clients to the
+# internal DNS stub resolver of systemd-resolved. This file lists all
+# configured search domains.
+#
+# Run "resolvectl status" to see details about the uplink DNS servers
+# currently in use.
+#
+# Third party programs should typically not access this file directly, but only
+# through the symlink at /etc/resolv.conf. To manage man:resolv.conf(5) in a
+# different way, replace this symlink by a static file or a different symlink.
+#
+# See man:systemd-resolved.service(8) for details about the supported modes of
+# operation for /etc/resolv.conf.
+
+nameserver 127.0.0.53
+options edns0 trust-ad
+search .
+
+$ ping -c 4 google.com
+PING google.com (192.178.211.138) 56(84) bytes of data.
+64 bytes from lcbomp-in-f138.1e100.net (192.178.211.138): icmp_seq=1 ttl=108 time=62.2 ms
+64 bytes from lcbomp-in-f138.1e100.net (192.178.211.138): icmp_seq=2 ttl=108 time=73.1 ms
+64 bytes from lcbomp-in-f138.1e100.net (192.178.211.138): icmp_seq=3 ttl=108 time=24.4 ms
+64 bytes from lcbomp-in-f138.1e100.net (192.178.211.138): icmp_seq=4 ttl=108 time=23.2 ms
+
+--- google.com ping statistics ---
+4 packets transmitted, 4 received, 0% packet loss, time 3028ms
+rtt min/avg/max/mdev = 23.211/45.707/73.103/22.265 ms
+
+$ traceroute -m 15 google.com
+traceroute to google.com (192.178.211.101), 15 hops max, 60 byte packets
+ 1  _gateway (192.168.252.1)  1.133 ms *  1.081 ms
+ 2  wifi.height8tech.com (100.128.160.1)  166.292 ms  166.282 ms  166.271 ms
+ 3  202.131.146.145.convergentindia.com (202.131.146.145)  166.258 ms  166.242 ms  166.186 ms
+ 4  172.20.20.17 (172.20.20.17)  179.989 ms  182.389 ms  166.135 ms
+ 5  72.14.208.165 (72.14.208.165)  185.099 ms  188.022 ms  189.453 ms
+ 6  lcbomp-in-f101.1e100.net (192.178.211.101)  191.463 ms  203.819 ms  203.780 ms
+
+$ nslookup google.com
+Server:		127.0.0.53
+Address:	127.0.0.53#53
+
+Non-authoritative answer:
+Name:	google.com
+Address: 192.178.211.100
+Name:	google.com
+Address: 192.178.211.138
+Name:	google.com
+Address: 192.178.211.101
+Name:	google.com
+Address: 192.178.211.102
+Name:	google.com
+Address: 192.178.211.139
+Name:	google.com
+Address: 192.178.211.113
+Name:	google.com
+Address: 2404:6800:4000:100c::8b
+Name:	google.com
+Address: 2404:6800:4000:100c::64
+Name:	google.com
+Address: 2404:6800:4000:100c::71
+Name:	google.com
+Address: 2404:6800:4000:100c::66
+
+
+$ dig google.com +short
+192.178.211.101
+192.178.211.113
+192.178.211.138
+192.178.211.102
+192.178.211.100
+192.178.211.139
+
+$ curl -sI https://www.google.com | head -n 5
+HTTP/2 200 
+content-type: text/html; charset=ISO-8859-1
+content-security-policy-report-only: object-src 'none';base-uri 'self';script-src 'nonce-Z-TwVFttqfd43B8L8zzU6w' 'strict-dynamic' 'report-sample' 'unsafe-eval' 'unsafe-inline' https: http:;report-uri https://csp.withgoogle.com/csp/gws/other-hp
+accept-ch: Sec-CH-Prefers-Color-Scheme
+p3p: CP="This is not a P3P policy! See g.co/p3phelp for more info."
+
+$ sudo ss -tulpn
+Netid State  Recv-Q Send-Q        Local Address:Port Peer Address:PortProcess                                                 
+udp   UNCONN 0      0                127.0.0.54:53        0.0.0.0:*    users:(("systemd-resolve",pid=610,fd=18))              
+udp   UNCONN 0      0             127.0.0.53%lo:53        0.0.0.0:*    users:(("systemd-resolve",pid=610,fd=16))              
+udp   UNCONN 0      0      192.168.252.2%enp0s1:68        0.0.0.0:*    users:(("systemd-network",pid=971,fd=33))              
+udp   UNCONN 0      0                 127.0.0.1:323       0.0.0.0:*    users:(("chronyd",pid=1168,fd=4))                      
+udp   UNCONN 0      0                     [::1]:323          [::]:*    users:(("chronyd",pid=1168,fd=5))                      
+tcp   LISTEN 0      4096                0.0.0.0:22        0.0.0.0:*    users:(("sshd",pid=1135,fd=3),("systemd",pid=1,fd=208))
+tcp   LISTEN 0      4096             127.0.0.54:53        0.0.0.0:*    users:(("systemd-resolve",pid=610,fd=19))              
+tcp   LISTEN 0      4096          127.0.0.53%lo:53        0.0.0.0:*    users:(("systemd-resolve",pid=610,fd=17))              
+tcp   LISTEN 0      4096                   [::]:22           [::]:*    users:(("sshd",pid=1135,fd=4),("systemd",pid=1,fd=209))
+
+$ netstat -tuln
+Active Internet connections (only servers)
+Proto Recv-Q Send-Q Local Address           Foreign Address         State      
+tcp        0      0 0.0.0.0:22              0.0.0.0:*               LISTEN     
+tcp        0      0 127.0.0.54:53           0.0.0.0:*               LISTEN     
+tcp        0      0 127.0.0.53:53           0.0.0.0:*               LISTEN     
+tcp6       0      0 :::22                   :::*                    LISTEN     
+udp        0      0 127.0.0.54:53           0.0.0.0:*                          
+udp        0      0 127.0.0.53:53           0.0.0.0:*                          
+udp        0      0 192.168.252.2:68        0.0.0.0:*                          
+udp        0      0 127.0.0.1:323           0.0.0.0:*                          
+udp6       0      0 ::1:323                 :::*                               
+
+$ arp -n
+Address                  HWtype  HWaddress           Flags Mask            Iface
+192.168.252.1            ether   86:94:37:ac:a3:64   C                     enp0s1
+
+$ sha256sum /etc/hostname
+da4d47d486c674b0e05b992713276b345aaa1858d3f147b4b185ad5215cfdc69  /etc/hostname
+
