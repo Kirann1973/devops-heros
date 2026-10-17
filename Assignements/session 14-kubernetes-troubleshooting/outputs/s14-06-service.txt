@@ -1,0 +1,100 @@
+########## Task 2: Service connectivity - wrong selector and wrong targetPort ##########
+$ kubectl apply -f 09-service-dns-troubleshooting/deployment.yaml -f 09-service-dns-troubleshooting/service.yaml
+deployment.apps/web created
+service/web-service created
+
+$ kubectl rollout status deployment/web --timeout=120s
+Waiting for deployment "web" rollout to finish: 0 of 2 updated replicas are available...
+Waiting for deployment "web" rollout to finish: 1 of 2 updated replicas are available...
+deployment "web" successfully rolled out
+
+$ (IDENTIFY: the pods run, but the Service does not answer)
+$ kubectl get pods -l app=web -o wide
+NAME                   READY   STATUS    RESTARTS   AGE   IP             NODE       NOMINATED NODE   READINESS GATES
+web-557577df75-4jc7w   1/1     Running   0          1s    10.244.0.225   minikube   <none>           <none>
+web-557577df75-8tb8b   1/1     Running   0          1s    10.244.0.224   minikube   <none>           <none>
+
+$ kubectl get svc web-service
+NAME          TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)   AGE
+web-service   ClusterIP   10.106.109.50   <none>        80/TCP    1s
+
+$ kubectl exec deploy/web -- curl -s -m 3 http://web-service || echo "curl failed (exit $?)"
+command terminated with exit code 7
+curl failed (exit 7)
+
+$ (INVESTIGATE: a Service sends traffic only to Pods whose labels match its selector)
+$ kubectl get endpoints web-service
+Warning: v1 Endpoints is deprecated in v1.33+; use discovery.k8s.io/v1 EndpointSlice
+NAME          ENDPOINTS   AGE
+web-service   <none>      1s
+
+$ kubectl describe svc web-service | grep -E "^Selector|^TargetPort|^Endpoints"
+Selector:                 app=web-ahsgdf
+TargetPort:               80/TCP
+Endpoints:                
+
+$ kubectl get pods --show-labels -l app=web
+NAME                   READY   STATUS    RESTARTS   AGE   LABELS
+web-557577df75-4jc7w   1/1     Running   0          1s    app=web,pod-template-hash=557577df75
+web-557577df75-8tb8b   1/1     Running   0          1s    app=web,pod-template-hash=557577df75
+
+$ kubectl get pods -l app=web-ahsgdf
+No resources found in default namespace.
+
+$ (ROOT CAUSE: selector app=web-ahsgdf, pod label app=web)
+$ (FIX)
+$ kubectl patch svc web-service -p '{"spec":{"selector":{"app":"web"}}}'
+service/web-service patched
+
+$ (VERIFY)
+$ kubectl get endpoints web-service
+Warning: v1 Endpoints is deprecated in v1.33+; use discovery.k8s.io/v1 EndpointSlice
+NAME          ENDPOINTS                         AGE
+web-service   10.244.0.224:80,10.244.0.225:80   6s
+
+$ kubectl exec deploy/web -- curl -s -m 3 http://web-service | grep "<title>"
+<title>Welcome to nginx!</title>
+
+$ (SECOND PROBLEM: targetPort points to a port nginx does not listen on)
+$ kubectl patch svc web-service -p '{"spec":{"ports":[{"port":80,"targetPort":8080}]}}'
+service/web-service patched
+
+$ kubectl get endpoints web-service
+Warning: v1 Endpoints is deprecated in v1.33+; use discovery.k8s.io/v1 EndpointSlice
+NAME          ENDPOINTS                             AGE
+web-service   10.244.0.224:8080,10.244.0.225:8080   12s
+
+$ kubectl exec deploy/web -- curl -s -m 3 http://web-service || echo "curl failed (exit $?)"
+command terminated with exit code 7
+curl failed (exit 7)
+
+$ kubectl get pod -l app=web -o jsonpath="{.items[0].spec.containers[0].ports[0].containerPort}{\"\n\"}"
+80
+
+$ (ROOT CAUSE: endpoints exist, but they point to :8080 and nginx listens on :80. FIX: targetPort 80)
+$ kubectl patch svc web-service -p '{"spec":{"ports":[{"port":80,"targetPort":80}]}}'
+service/web-service patched
+
+$ kubectl get endpoints web-service
+Warning: v1 Endpoints is deprecated in v1.33+; use discovery.k8s.io/v1 EndpointSlice
+NAME          ENDPOINTS                         AGE
+web-service   10.244.0.224:80,10.244.0.225:80   17s
+
+$ kubectl exec deploy/web -- curl -s -m 3 http://web-service | grep "<title>"
+<title>Welcome to nginx!</title>
+
+$ (instructor broken-service.yaml: same kind of problem)
+$ kubectl apply -f 09-service-dns-troubleshooting/broken-service.yaml
+service/broken-service created
+
+$ kubectl get endpoints broken-service
+Warning: v1 Endpoints is deprecated in v1.33+; use discovery.k8s.io/v1 EndpointSlice
+NAME             ENDPOINTS   AGE
+broken-service   <none>      0s
+
+$ kubectl get pods -l app=does-not-exist
+No resources found in default namespace.
+
+$ kubectl delete -f 09-service-dns-troubleshooting/broken-service.yaml
+service "broken-service" deleted from default namespace
+

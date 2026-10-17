@@ -1,0 +1,157 @@
+########## Task 1: the main troubleshooting commands ##########
+$ kubectl apply -f 01-kubectl-get/pod.yaml -f 03-kubectl-logs/pod.yaml -f 04-kubectl-exec/pod.yaml
+pod/get-demo created
+pod/logs-demo created
+pod/exec-demo created
+
+$ kubectl wait --for=condition=Ready pod/get-demo pod/logs-demo pod/exec-demo --timeout=120s
+pod/get-demo condition met
+pod/logs-demo condition met
+pod/exec-demo condition met
+
+$ (kubectl get: what exists and its state)
+$ kubectl get pods
+NAME        READY   STATUS    RESTARTS   AGE
+exec-demo   1/1     Running   0          1s
+get-demo    1/1     Running   0          1s
+logs-demo   1/1     Running   0          1s
+
+$ kubectl get pods -o wide
+NAME        READY   STATUS    RESTARTS   AGE   IP             NODE       NOMINATED NODE   READINESS GATES
+exec-demo   1/1     Running   0          1s    10.244.0.216   minikube   <none>           <none>
+get-demo    1/1     Running   0          1s    10.244.0.215   minikube   <none>           <none>
+logs-demo   1/1     Running   0          1s    10.244.0.217   minikube   <none>           <none>
+
+$ kubectl get pods --show-labels
+NAME        READY   STATUS    RESTARTS   AGE   LABELS
+exec-demo   1/1     Running   0          1s    <none>
+get-demo    1/1     Running   0          1s    app=get-demo
+logs-demo   1/1     Running   0          1s    <none>
+
+$ kubectl get pod get-demo -o jsonpath="{.status.phase} {.status.podIP} {.spec.nodeName}{\"\n\"}"
+Running 10.244.0.215 minikube
+
+$ kubectl get nodes -o wide
+NAME       STATUS   ROLES           AGE    VERSION   INTERNAL-IP    EXTERNAL-IP   OS-IMAGE                         KERNEL-VERSION             CONTAINER-RUNTIME
+minikube   Ready    control-plane   123m   v1.37.0   192.168.49.2   <none>        Debian GNU/Linux 12 (bookworm)   7.0.0-34-generic (arm64)   containerd://2.3.4
+
+$ (kubectl describe: details + Events)
+$ kubectl describe pod get-demo | grep -E "^Name:|^Node:|^Status:|^IP:|Image:|State:|Ready:|Restart Count|^Events|Scheduled|Pulled|Created|Started"
+Name:             get-demo
+Node:             minikube/192.168.49.2
+Status:           Running
+IP:               10.244.0.215
+    Image:          nginx:1.27
+    State:          Running
+      Started:      Sun, 18 Oct 2026 03:01:25 +0530
+    Ready:          True
+    Restart Count:  0
+  PodScheduled                True 
+Events:
+  Normal  Scheduled  1s    default-scheduler  Successfully assigned default/get-demo to minikube
+  Normal  Pulled     1s    kubelet            spec.containers{nginx}: Container image "nginx:1.27" already present on machine and can be accessed by the pod
+  Normal  Created    1s    kubelet            spec.containers{nginx}: Container created
+  Normal  Started    0s    kubelet            spec.containers{nginx}: Container started
+
+$ (kubectl logs: what the app printed)
+$ kubectl logs logs-demo
+Application started
+Connecting to database...
+Database connection successful
+Application is running
+Application is healthy
+
+$ kubectl logs logs-demo --tail=2 --timestamps
+2026-10-17T21:31:25.015147480Z Application is running
+2026-10-17T21:31:25.015147980Z Application is healthy
+
+$ (kubectl exec: run commands inside the container)
+$ kubectl exec exec-demo -- hostname
+exec-demo
+
+$ kubectl exec exec-demo -- curl -s -o /dev/null -w "nginx on localhost -> HTTP %{http_code}\n" localhost
+nginx on localhost -> HTTP 200
+
+$ kubectl exec exec-demo -- cat /etc/resolv.conf
+search default.svc.cluster.local svc.cluster.local cluster.local
+nameserver 10.96.0.10
+options ndots:5
+
+$ kubectl exec exec-demo -- sh -c 'echo "exec test by Kiran N - Roll No 10446" > /tmp/kiran.txt; cat /tmp/kiran.txt'
+exec test by Kiran N - Roll No 10446
+
+$ (kubectl events: what happened in the cluster, oldest first)
+$ kubectl events --for pod/exec-demo
+LAST SEEN   TYPE     REASON      OBJECT          MESSAGE
+2s          Normal   Scheduled   Pod/exec-demo   Successfully assigned default/exec-demo to minikube
+2s          Normal   Pulled      Pod/exec-demo   Container image "nginx:1.27" already present on machine and can be accessed by the pod
+2s          Normal   Created     Pod/exec-demo   Container created
+2s          Normal   Started     Pod/exec-demo   Container started
+
+$ kubectl get events --sort-by=.lastTimestamp | tail -6
+2s          Normal    Started                        pod/exec-demo                               Container started
+2s          Normal    Created                        pod/exec-demo                               Container created
+2s          Normal    Pulled                         pod/exec-demo                               Container image "nginx:1.27" already present on machine and can be accessed by the pod
+2s          Normal    Scheduled                      pod/exec-demo                               Successfully assigned default/exec-demo to minikube
+1s          Normal    Started                        pod/logs-demo                               Container started
+1s          Normal    Started                        pod/get-demo                                Container started
+
+$ (kubectl explain: built-in documentation of every field)
+$ kubectl explain pod.spec.restartPolicy
+KIND:       Pod
+VERSION:    v1
+
+FIELD: restartPolicy <string>
+ENUM:
+    Always
+    Never
+    OnFailure
+
+DESCRIPTION:
+    Restart policy for all containers within the pod. One of Always, OnFailure,
+    Never. In some contexts, only a subset of those values may be permitted.
+    Default to Always. More info:
+    https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#restart-policy
+    
+    Possible enum values:
+     - `"Always"`
+     - `"Never"`
+     - `"OnFailure"`
+    
+
+
+$ kubectl explain deployment.spec.strategy | head -14
+GROUP:      apps
+KIND:       Deployment
+VERSION:    v1
+
+FIELD: strategy <DeploymentStrategy>
+
+
+DESCRIPTION:
+    The deployment strategy to use to replace existing pods with new ones.
+    DeploymentStrategy describes how to replace existing pods with new ones.
+    
+FIELDS:
+  rollingUpdate	<RollingUpdateDeployment>
+    Rolling update config params. Present only if DeploymentStrategyType =
+
+$ (kubectl top: CPU and memory (needs metrics-server))
+$ minikube addons enable metrics-server | tail -1
+* The 'metrics-server' addon is enabled
+
+$ kubectl top nodes
+NAME       CPU(cores)   CPU(%)   MEMORY(bytes)   MEMORY(%)   
+minikube   165m         8%       1120Mi          18%         
+
+$ kubectl top pods
+NAME        CPU(cores)   MEMORY(bytes)   
+exec-demo   1m           2Mi             
+get-demo    1m           2Mi             
+logs-demo   1m           0Mi             
+
+$ kubectl delete pod get-demo logs-demo exec-demo --grace-period=1
+pod "get-demo" deleted from default namespace
+pod "logs-demo" deleted from default namespace
+pod "exec-demo" deleted from default namespace
+

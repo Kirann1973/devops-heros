@@ -1,0 +1,144 @@
+########## Task 2: DNS issues and Pod networking ##########
+$ kubectl apply -f 09-service-dns-troubleshooting/deployment.yaml -f 09-service-dns-troubleshooting/service.yaml
+deployment.apps/web created
+service/web-service created
+
+$ (with the selector fix from part 6)
+$ kubectl patch svc web-service -p '{"spec":{"selector":{"app":"web"}}}'
+service/web-service patched
+
+$ kubectl rollout status deployment/web --timeout=120s
+Waiting for deployment "web" rollout to finish: 0 of 2 updated replicas are available...
+Waiting for deployment "web" rollout to finish: 1 of 2 updated replicas are available...
+deployment "web" successfully rolled out
+
+$ (the instructor dns-test pod did not become Ready in my first run: find out why)
+$ kubectl apply -f 09-service-dns-troubleshooting/dns-test-pod.yaml
+pod/dns-test created
+
+$ kubectl get pod dns-test -o wide
+NAME       READY   STATUS         RESTARTS   AGE   IP             NODE       NOMINATED NODE   READINESS GATES
+dns-test   0/1     ErrImagePull   0          60s   10.244.0.241   minikube   <none>           <none>
+
+$ kubectl get pod dns-test -o jsonpath="waiting: {.status.containerStatuses[0].state.waiting.reason}  terminated: {.status.containerStatuses[0].state.terminated.reason} {.status.containerStatuses[0].lastState.terminated.reason}{\"\n\"}"
+waiting: ErrImagePull  terminated:  
+
+$ kubectl logs dns-test --tail=5 2>&1 | head -5
+Error from server (BadRequest): container "dns-test" in pod "dns-test" is waiting to start: image can't be pulled
+
+$ kubectl describe pod dns-test | grep -A20 "^Events" | grep -E "Warning|Failed|BackOff|Pulled|Started" | head -6
+  Warning  Failed     20s (x3 over 60s)  kubelet            spec.containers{dns-test}: Failed to pull image "registry.k8s.io/e2e-test-images/dnsutils:1.3": rpc error: code = NotFound desc = failed to pull and unpack image "registry.k8s.io/e2e-test-images/dnsutils:1.3": failed to resolve reference "registry.k8s.io/e2e-test-images/dnsutils:1.3": registry.k8s.io/e2e-test-images/dnsutils:1.3: not found
+  Warning  Failed     20s (x3 over 60s)  kubelet            spec.containers{dns-test}: Error: ErrImagePull
+  Normal   BackOff    6s (x3 over 59s)   kubelet            spec.containers{dns-test}: Back-off pulling image "registry.k8s.io/e2e-test-images/dnsutils:1.3"
+  Warning  Failed     6s (x3 over 59s)   kubelet            spec.containers{dns-test}: Error: ImagePullBackOff
+
+$ kubectl get node minikube -o jsonpath="node architecture: {.status.nodeInfo.architecture}{\"\n\"}"
+node architecture: arm64
+
+$ kubectl delete pod dns-test --grace-period=1
+pod "dns-test" deleted from default namespace
+
+$ (use a multi-arch test pod instead)
+$ kubectl apply -f 09-service-dns-troubleshooting/netshoot-pod.yaml
+pod/netshoot created
+
+$ kubectl wait --for=condition=Ready pod/netshoot --timeout=300s
+pod/netshoot condition met
+
+$ (DNS: is CoreDNS running?)
+$ kubectl get pods -n kube-system -l k8s-app=kube-dns
+NAME                       READY   STATUS    RESTARTS   AGE
+coredns-559f6c778d-x7k6w   1/1     Running   0          137m
+
+$ kubectl get svc -n kube-system kube-dns
+NAME       TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)                  AGE
+kube-dns   ClusterIP   10.96.0.10   <none>        53/UDP,53/TCP,9153/TCP   137m
+
+$ kubectl exec netshoot -- cat /etc/resolv.conf
+search default.svc.cluster.local svc.cluster.local cluster.local
+nameserver 10.96.0.10
+options ndots:5
+
+$ (DNS: names that should resolve)
+$ kubectl exec netshoot -- nslookup kubernetes.default
+Server:		10.96.0.10
+Address:	10.96.0.10#53
+
+Name:	kubernetes.default.svc.cluster.local
+Address: 10.96.0.1
+
+
+$ kubectl exec netshoot -- nslookup web-service
+Server:		10.96.0.10
+Address:	10.96.0.10#53
+
+Name:	web-service.default.svc.cluster.local
+Address: 10.97.200.41
+
+
+$ kubectl exec netshoot -- dig +short web-service.default.svc.cluster.local
+10.97.200.41
+
+$ kubectl get svc web-service -o jsonpath="{.spec.clusterIP}{\"\n\"}"
+10.97.200.41
+
+$ (DNS issue: a wrong name (typo) -> NXDOMAIN)
+$ kubectl exec netshoot -- nslookup web-servcie || true
+Server:		10.96.0.10
+Address:	10.96.0.10#53
+
+** server can't find web-servcie: SERVFAIL
+
+command terminated with exit code 1
+
+$ kubectl exec netshoot -- nslookup web-service.wrong-namespace.svc.cluster.local || true
+Server:		10.96.0.10
+Address:	10.96.0.10#53
+
+** server can't find web-service.wrong-namespace.svc.cluster.local: NXDOMAIN
+
+command terminated with exit code 1
+
+$ (DNS issue: a short name only works inside the same namespace (kube-dns is in kube-system))
+$ kubectl exec netshoot -- nslookup kube-dns || true
+Server:		10.96.0.10
+Address:	10.96.0.10#53
+
+** server can't find kube-dns: SERVFAIL
+
+command terminated with exit code 1
+
+$ kubectl exec netshoot -- nslookup kube-dns.kube-system
+Server:		10.96.0.10
+Address:	10.96.0.10#53
+
+Name:	kube-dns.kube-system.svc.cluster.local
+Address: 10.96.0.10
+
+
+$ (POD NETWORKING: every Pod has its own IP and can reach every other Pod directly)
+$ kubectl get pods -l app=web -o wide
+NAME                   READY   STATUS    RESTARTS   AGE   IP             NODE       NOMINATED NODE   READINESS GATES
+web-557577df75-2n26h   1/1     Running   0          99s   10.244.0.240   minikube   <none>           <none>
+web-557577df75-tj2h7   1/1     Running   0          99s   10.244.0.239   minikube   <none>           <none>
+
+$ kubectl exec web-557577df75-2n26h -- curl -s -o /dev/null -w "web-557577df75-2n26h -> pod IP 10.244.0.239:80 -> HTTP %{http_code}\n" http://10.244.0.239
+web-557577df75-2n26h -> pod IP 10.244.0.239:80 -> HTTP 200
+
+$ kubectl exec web-557577df75-2n26h -- curl -s -m 3 http://10.244.0.239:8080 || echo "curl failed (exit $?): nothing listens on 8080"
+command terminated with exit code 7
+curl failed (exit 7): nothing listens on 8080
+
+$ kubectl exec netshoot -- curl -s -o /dev/null -w "netshoot -> web-service.default.svc.cluster.local -> HTTP %{http_code}\n" http://web-service.default.svc.cluster.local
+netshoot -> web-service.default.svc.cluster.local -> HTTP 200
+
+$ kubectl exec netshoot -- nc -zv -w 3 10.244.0.239 80
+Connection to 10.244.0.239 80 port [tcp/http] succeeded!
+
+$ kubectl delete pod netshoot --grace-period=1
+pod "netshoot" deleted from default namespace
+
+$ kubectl delete -f 09-service-dns-troubleshooting/deployment.yaml -f 09-service-dns-troubleshooting/service.yaml
+deployment.apps "web" deleted from default namespace
+service "web-service" deleted from default namespace
+

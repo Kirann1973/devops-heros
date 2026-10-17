@@ -1,0 +1,42 @@
+########## Task 2: Pending ##########
+$ (IDENTIFY)
+$ kubectl apply -f 08-pending-pods/broken-pod.yaml
+pod/pending-demo created
+
+$ kubectl get pod pending-demo -o wide
+NAME           READY   STATUS    RESTARTS   AGE   IP       NODE     NOMINATED NODE   READINESS GATES
+pending-demo   0/1     Pending   0          5s    <none>   <none>   <none>           <none>
+
+$ (INVESTIGATE: the scheduler explains in the Events why no node fits)
+$ kubectl describe pod pending-demo | grep -A3 "^Node-Selectors"
+Node-Selectors:              kubernetes.io/hostname=node-that-does-not-exist
+Tolerations:                 node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+
+$ kubectl describe pod pending-demo | grep -A8 "^Events" | grep FailedScheduling
+  Warning  FailedScheduling  6s    default-scheduler  0/1 nodes are available: 1 node(s) didn't match Pod's node affinity/selector. preemption: 0/1 nodes are available: 1 Preemption is not helpful for scheduling.
+
+$ kubectl get nodes -L kubernetes.io/hostname
+NAME       STATUS   ROLES           AGE    VERSION   HOSTNAME
+minikube   Ready    control-plane   126m   v1.37.0   minikube
+
+$ (ROOT CAUSE: nodeSelector kubernetes.io/hostname=node-that-does-not-exist matches no node)
+$ (FIX: nodeSelector cannot be changed on an existing Pod, so delete and apply the fixed Pod)
+$ kubectl delete pod pending-demo --grace-period=1
+pod "pending-demo" deleted from default namespace
+
+$ kubectl apply -f 08-pending-pods/fixed-pod.yaml
+pod/pending-demo created
+
+$ kubectl wait --for=condition=Ready pod/pending-demo --timeout=120s
+pod/pending-demo condition met
+
+$ (VERIFY)
+$ kubectl get pod pending-demo -o wide
+NAME           READY   STATUS    RESTARTS   AGE   IP             NODE       NOMINATED NODE   READINESS GATES
+pending-demo   1/1     Running   0          1s    10.244.0.221   minikube   <none>           <none>
+
+$ kubectl delete pod pending-demo --grace-period=1
+pod "pending-demo" deleted from default namespace
+

@@ -1,0 +1,188 @@
+########## Triage gauntlet: 5 broken pods, diagnose and fix each ##########
+$ bash scenarios/triage_all.sh
+==================================================
+      KUBERNETES INCIDENT TRIAGE GAUNTLET         
+==================================================
+Deploying 5 intentionally broken production workloads...
+
+pod/fail-1-crashloop-pod created
+pod/fail-2-imagepull-pod created
+pod/fail-3-pending-pod created
+pod/fail-4-dns-failure-pod created
+pod/fail-5-oomkilled-pod created
+
+Workloads deployed! Sleeping 5s to allow states to settle...
+
+=== CURRENT CLUSTER CARNAGE ===
+NAME                     READY   STATUS         RESTARTS     AGE
+fail-1-crashloop-pod     0/1     Error          1 (6s ago)   6s
+fail-2-imagepull-pod     0/1     ErrImagePull   0            6s
+fail-3-pending-pod       0/1     Pending        0            6s
+fail-4-dns-failure-pod   1/1     Running        0            6s
+fail-5-oomkilled-pod     0/1     OOMKilled      1 (5s ago)   5s
+
+==================================================
+Your mission: Diagnose and fix each of the 5 pods!
+Follow the diagnostic guide in README.md!
+==================================================
+
+$ (give the failures time to show (pulls, restarts, back-off))
+$ kubectl get pods -l tier=triage-gauntlet
+NAME                     READY   STATUS             RESTARTS      AGE
+fail-1-crashloop-pod     0/1     Error              3 (38s ago)   51s
+fail-2-imagepull-pod     0/1     ImagePullBackOff   0             51s
+fail-3-pending-pod       0/1     Pending            0             51s
+fail-4-dns-failure-pod   1/1     Running            0             51s
+fail-5-oomkilled-pod     0/1     OOMKilled          3 (37s ago)   50s
+
+$ (--- 1. crashloop)
+$ kubectl logs fail-1-crashloop-pod
+[FATAL ERROR]: DATABASE_URL environment variable is MISSING!
+
+$ kubectl describe pod fail-1-crashloop-pod | grep -E "Exit Code|Restart Count" | head -2
+      Exit Code:    1
+      Exit Code:    1
+
+$ (root cause: DATABASE_URL env var missing -> exit 1. fix: add the env var (and keep the app running))
+$ kubectl delete pod fail-1-crashloop-pod --grace-period=1
+pod "fail-1-crashloop-pod" deleted from default namespace
+
+$ kubectl apply -f scenarios/scenario-1-crashloop/fixed.yaml
+pod/fail-1-crashloop-pod created
+
+$ (--- 2. imagepull)
+$ kubectl describe pod fail-2-imagepull-pod | grep -A12 "^Events" | grep -E "Failed" | head -2
+  Warning  Failed     24s (x2 over 50s)  kubelet            spec.containers{web-app}: Error: ImagePullBackOff
+  Warning  Failed     8s (x3 over 50s)   kubelet            spec.containers{web-app}: Failed to pull image "yatri-api-service:v999-invalid-tag-does-not-exist": failed to pull and unpack image "docker.io/library/yatri-api-service:v999-invalid-tag-does-not-exist": failed to resolve reference "docker.io/library/yatri-api-service:v999-invalid-tag-does-not-exist": pull access denied, repository does not exist or may require authorization: server message: insufficient_scope: authorization failed
+
+$ (root cause: image yatri-api-service:v999-invalid-tag-does-not-exist does not exist. fix: a real image)
+$ kubectl apply -f scenarios/scenario-2-imagepull/fixed.yaml
+pod/fail-2-imagepull-pod configured
+
+$ (--- 3. pending)
+$ kubectl describe pod fail-3-pending-pod | grep -A6 "^Events" | grep FailedScheduling
+  Warning  FailedScheduling  1s (x2 over 52s)  default-scheduler  0/1 nodes are available: 1 Insufficient cpu, 1 Insufficient memory. preemption: 0/1 nodes are available: 1 Preemption is not helpful for scheduling.
+
+$ kubectl describe node minikube | grep -A7 "^Allocatable" | grep -E "cpu|memory"
+  cpu:                2
+  memory:             6040184Ki
+
+$ (root cause: requests 500 CPU / 1000Gi, the node has far less. fix: realistic requests)
+$ kubectl delete pod fail-3-pending-pod --grace-period=1
+pod "fail-3-pending-pod" deleted from default namespace
+
+$ kubectl apply -f scenarios/scenario-3-pending/fixed.yaml
+pod/fail-3-pending-pod created
+
+$ (--- 4. dns-failure (the pod is Running, the failure is hidden))
+$ kubectl logs fail-4-dns-failure-pod
+Attempting connection to internal database...
+Process sleeping...
+
+$ kubectl exec fail-4-dns-failure-pod -- curl -sS --connect-timeout 3 http://postgres-db-wrong-name.production.svc.cluster.local:5432 || true
+curl: (6) Could not resolve host: postgres-db-wrong-name.production.svc.cluster.local
+command terminated with exit code 6
+
+$ kubectl exec fail-4-dns-failure-pod -- nslookup postgres-db-wrong-name.production.svc.cluster.local || true
+Server:		10.96.0.10
+Address:	10.96.0.10:53
+
+** server can't find postgres-db-wrong-name.production.svc.cluster.local: NXDOMAIN
+
+** server can't find postgres-db-wrong-name.production.svc.cluster.local: NXDOMAIN
+
+command terminated with exit code 1
+
+$ kubectl get namespace production || true
+Error from server (NotFound): namespaces "production" not found
+
+$ (root cause: no Service with that name (and no namespace production). fix: deploy the database Service and use its real name)
+$ kubectl apply -f scenarios/scenario-4-dns-failure/postgres-db.yaml
+namespace/production created
+deployment.apps/postgres-db created
+service/postgres-db created
+
+$ kubectl rollout status deployment/postgres-db -n production --timeout=180s
+Waiting for deployment "postgres-db" rollout to finish: 0 of 1 updated replicas are available...
+deployment "postgres-db" successfully rolled out
+
+$ kubectl get svc,endpoints -n production
+Warning: v1 Endpoints is deprecated in v1.33+; use discovery.k8s.io/v1 EndpointSlice
+NAME                  TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)    AGE
+service/postgres-db   ClusterIP   10.111.233.212   <none>        5432/TCP   4s
+
+NAME                    ENDPOINTS           AGE
+endpoints/postgres-db   10.244.0.249:5432   4s
+
+$ kubectl delete pod fail-4-dns-failure-pod --grace-period=1
+pod "fail-4-dns-failure-pod" deleted from default namespace
+
+$ kubectl apply -f scenarios/scenario-4-dns-failure/fixed.yaml
+pod/fail-4-dns-failure-pod created
+
+$ (--- 5. oomkilled)
+$ kubectl get pod fail-5-oomkilled-pod -o jsonpath="last state: {.status.containerStatuses[0].lastState.terminated.reason}, exit code {.status.containerStatuses[0].lastState.terminated.exitCode}{\"\n\"}"
+last state: OOMKilled, exit code 137
+
+$ kubectl describe pod fail-5-oomkilled-pod | grep -E "Limits|memory:|Reason|Exit Code|Restart Count"
+      Reason:       OOMKilled
+      Exit Code:    137
+      Reason:       OOMKilled
+      Exit Code:    137
+    Restart Count:  3
+    Limits:
+      memory:  20Mi
+      memory:     20Mi
+  Type     Reason     Age                From               Message
+
+$ (root cause: the code allocates 100 x 10 MB = 1000 MB with a 20Mi limit. fix: allocate 100 MB, limit 256Mi)
+$ kubectl delete pod fail-5-oomkilled-pod --grace-period=1
+pod "fail-5-oomkilled-pod" deleted from default namespace
+
+$ kubectl apply -f scenarios/scenario-5-oomkilled/fixed.yaml
+pod/fail-5-oomkilled-pod created
+
+$ (VERIFY all 5)
+$ kubectl wait --for=condition=Ready pod -l tier=triage-gauntlet --timeout=180s
+pod/fail-1-crashloop-pod condition met
+pod/fail-2-imagepull-pod condition met
+pod/fail-3-pending-pod condition met
+pod/fail-4-dns-failure-pod condition met
+pod/fail-5-oomkilled-pod condition met
+
+$ kubectl get pods -l tier=triage-gauntlet
+NAME                     READY   STATUS    RESTARTS   AGE
+fail-1-crashloop-pod     1/1     Running   0          15s
+fail-2-imagepull-pod     1/1     Running   0          67s
+fail-3-pending-pod       1/1     Running   0          14s
+fail-4-dns-failure-pod   1/1     Running   0          7s
+fail-5-oomkilled-pod     1/1     Running   0          6s
+
+$ kubectl logs fail-1-crashloop-pod
+Application started successfully! (fixed by Kiran N - 10446)
+DATABASE_URL = postgresql://yatri_admin@postgres-db.production.svc.cluster.local:5432/yatri
+
+$ kubectl logs fail-4-dns-failure-pod
+Attempting connection to internal database postgres-db.production.svc.cluster.local:5432 (Kiran N - 10446)
+
+
+CONNECTED: port 5432 is open
+
+$ kubectl logs fail-5-oomkilled-pod
+Allocating 100 MB (fixed by Kiran N - 10446)...
+Allocated 100 MB, running fine
+
+$ kubectl top pod fail-5-oomkilled-pod
+NAME                   CPU(cores)   MEMORY(bytes)   
+fail-5-oomkilled-pod   2m           103Mi           
+
+$ kubectl delete pod -l tier=triage-gauntlet --grace-period=1
+pod "fail-1-crashloop-pod" deleted from default namespace
+pod "fail-2-imagepull-pod" deleted from default namespace
+pod "fail-3-pending-pod" deleted from default namespace
+pod "fail-4-dns-failure-pod" deleted from default namespace
+pod "fail-5-oomkilled-pod" deleted from default namespace
+
+$ kubectl delete namespace production
+namespace "production" deleted
+

@@ -1,0 +1,64 @@
+########## Task 2: ContainerCreating (missing ConfigMap) and configuration issues (missing Secret) ##########
+$ (A) ContainerCreating: the volume cannot be mounted)
+$ kubectl apply -f 10-config-issues/containercreating-pod.yaml
+pod/mount-demo created
+
+$ kubectl get pod mount-demo
+NAME         READY   STATUS              RESTARTS   AGE
+mount-demo   0/1     ContainerCreating   0          15s
+
+$ kubectl describe pod mount-demo | grep -A10 "^Events" | grep FailedMount
+  Warning  FailedMount  8s (x5 over 15s)  kubelet            MountVolume.SetUp failed for volume "settings" : configmap "app-settings" not found
+
+$ kubectl get configmap app-settings
+Error from server (NotFound): configmaps "app-settings" not found
+
+$ (ROOT CAUSE: ConfigMap app-settings does not exist. FIX: create it, the kubelet retries the mount by itself)
+$ kubectl create configmap app-settings --from-literal=GREETING="Hello from Kiran N - Roll No 10446"
+configmap/app-settings created
+
+$ kubectl wait --for=condition=Ready pod/mount-demo --timeout=180s
+pod/mount-demo condition met
+
+$ kubectl get pod mount-demo
+NAME         READY   STATUS    RESTARTS   AGE
+mount-demo   1/1     Running   0          16s
+
+$ kubectl logs mount-demo
+mount-demo (Kiran N - 10446) read: Hello from Kiran N - Roll No 10446
+
+$ (B) CreateContainerConfigError: env var from a Secret that does not exist)
+$ kubectl apply -f 10-config-issues/config-error-pod.yaml
+pod/config-demo created
+
+$ (watching pod config-demo (status every 3 s))
++  0s  config-demo  0/1 ContainerCreating 0
++  3s  config-demo  0/1 CreateContainerConfigError 0
+
+$ kubectl describe pod config-demo | grep -A10 "^Events" | grep -E "Failed|Warning"
+  Warning  Failed     1s (x2 over 2s)  kubelet            spec.containers{app}: Error: secret "db-credentials" not found
+
+$ (ROOT CAUSE: Secret db-credentials is missing. FIX: create it, the kubelet retries)
+$ kubectl create secret generic db-credentials --from-literal=DB_PASSWORD=secretpassword
+secret/db-credentials created
+
+$ kubectl wait --for=condition=Ready pod/config-demo --timeout=120s
+pod/config-demo condition met
+
+$ kubectl get pod config-demo
+NAME          READY   STATUS    RESTARTS   AGE
+config-demo   1/1     Running   0          15s
+
+$ kubectl logs config-demo
+config-demo (Kiran N - 10446): password has 14 characters
+
+$ kubectl delete pod mount-demo config-demo --grace-period=1
+pod "mount-demo" deleted from default namespace
+pod "config-demo" deleted from default namespace
+
+$ kubectl delete configmap app-settings
+configmap "app-settings" deleted from default namespace
+
+$ kubectl delete secret db-credentials
+secret "db-credentials" deleted from default namespace
+

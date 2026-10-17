@@ -1,0 +1,126 @@
+########## Task 3: Mini project - troubleshooting challenge ##########
+$ (1. deploy the application)
+$ kubectl apply -f mini-project/deployment.yaml -f mini-project/service.yaml
+deployment.apps/troubleshooting-app created
+service/troubleshooting-service created
+
+$ kubectl rollout status deployment/troubleshooting-app --timeout=120s
+Waiting for deployment "troubleshooting-app" rollout to finish: 0 of 2 updated replicas are available...
+Waiting for deployment "troubleshooting-app" rollout to finish: 1 of 2 updated replicas are available...
+deployment "troubleshooting-app" successfully rolled out
+
+$ kubectl get pods -l app=troubleshooting-app -o wide
+NAME                                   READY   STATUS    RESTARTS   AGE   IP             NODE       NOMINATED NODE   READINESS GATES
+troubleshooting-app-59d4957864-mfbdj   1/1     Running   0          1s    10.244.0.236   minikube   <none>           <none>
+troubleshooting-app-59d4957864-nwbtw   1/1     Running   0          1s    10.244.0.237   minikube   <none>           <none>
+
+$ kubectl get service troubleshooting-service
+NAME                      TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)   AGE
+troubleshooting-service   ClusterIP   10.102.123.89   <none>        80/TCP    1s
+
+$ (2. check the application)
+$ kubectl describe pod troubleshooting-app-59d4957864-mfbdj | grep -E '^Status:|^IP:|Image:|Ready:|Restart Count'
+Status:           Running
+IP:               10.244.0.236
+    Image:          nginx:1.27
+    Ready:          True
+    Restart Count:  0
+
+$ kubectl logs troubleshooting-app-59d4957864-mfbdj | tail -3
+2026/10/17 21:40:26 [notice] 1#1: start worker processes
+2026/10/17 21:40:26 [notice] 1#1: start worker process 29
+2026/10/17 21:40:26 [notice] 1#1: start worker process 30
+
+$ kubectl exec troubleshooting-app-59d4957864-mfbdj -- curl -s localhost | grep '<title>'
+<title>Welcome to nginx!</title>
+
+$ (3 and 4. check the Service and its endpoints)
+$ kubectl describe service troubleshooting-service | grep -E "^Selector|^TargetPort|^Endpoints"
+Selector:                 app=troubleshooting-app
+TargetPort:               80/TCP
+Endpoints:                10.244.0.237:80,10.244.0.236:80
+
+$ kubectl get endpoints troubleshooting-service
+Warning: v1 Endpoints is deprecated in v1.33+; use discovery.k8s.io/v1 EndpointSlice
+NAME                      ENDPOINTS                         AGE
+troubleshooting-service   10.244.0.236:80,10.244.0.237:80   1s
+
+$ (5 and 6. broken pod)
+$ kubectl apply -f mini-project/broken-pod.yaml
+pod/project-broken-pod created
+
+$ (watching pod project-broken-pod (status every 3 s))
++  0s  project-broken-pod  0/1 ContainerCreating 0
++  4s  project-broken-pod  0/1 ErrImagePull 0
++ 16s  project-broken-pod  0/1 ImagePullBackOff 0
+
+$ kubectl get pod project-broken-pod
+NAME                 READY   STATUS             RESTARTS   AGE
+project-broken-pod   0/1     ImagePullBackOff   0          16s
+
+$ kubectl describe pod project-broken-pod | grep -A12 "^Events" | grep -E "Pulling|Failed|BackOff"
+  Normal   BackOff    13s               kubelet            spec.containers{app}: Back-off pulling image "nginx:this-tag-does-not-exist"
+  Warning  Failed     13s               kubelet            spec.containers{app}: Error: ImagePullBackOff
+  Normal   Pulling    2s (x2 over 15s)  kubelet            spec.containers{app}: Pulling image "nginx:this-tag-does-not-exist"
+  Warning  Failed     1s (x2 over 14s)  kubelet            spec.containers{app}: Failed to pull image "nginx:this-tag-does-not-exist": rpc error: code = NotFound desc = failed to pull and unpack image "docker.io/library/nginx:this-tag-does-not-exist": failed to resolve reference "docker.io/library/nginx:this-tag-does-not-exist": docker.io/library/nginx:this-tag-does-not-exist: not found
+  Warning  Failed     1s (x2 over 14s)  kubelet            spec.containers{app}: Error: ErrImagePull
+
+$ kubectl set image pod/project-broken-pod app=nginx:1.27
+pod/project-broken-pod image updated
+
+$ kubectl wait --for=condition=Ready pod/project-broken-pod --timeout=120s
+pod/project-broken-pod condition met
+
+$ kubectl get pod project-broken-pod
+NAME                 READY   STATUS    RESTARTS   AGE
+project-broken-pod   1/1     Running   0          17s
+
+$ (8. break the Service selector)
+$ kubectl patch service troubleshooting-service -p '{"spec":{"selector":{"app":"wrong-app"}}}'
+service/troubleshooting-service patched
+
+$ kubectl get service troubleshooting-service
+NAME                      TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)   AGE
+troubleshooting-service   ClusterIP   10.102.123.89   <none>        80/TCP    23s
+
+$ kubectl get endpoints troubleshooting-service
+Warning: v1 Endpoints is deprecated in v1.33+; use discovery.k8s.io/v1 EndpointSlice
+NAME                      ENDPOINTS   AGE
+troubleshooting-service   <none>      23s
+
+$ kubectl exec troubleshooting-app-59d4957864-mfbdj -- curl -s -m 3 http://troubleshooting-service || echo "curl failed (exit $?)"
+command terminated with exit code 7
+curl failed (exit 7)
+
+$ (9. find the root cause: compare pod labels and Service selector)
+$ kubectl get pods --show-labels -l app=troubleshooting-app
+NAME                                   READY   STATUS    RESTARTS   AGE   LABELS
+troubleshooting-app-59d4957864-mfbdj   1/1     Running   0          23s   app=troubleshooting-app,pod-template-hash=59d4957864
+troubleshooting-app-59d4957864-nwbtw   1/1     Running   0          23s   app=troubleshooting-app,pod-template-hash=59d4957864
+
+$ kubectl describe service troubleshooting-service | grep -E "^Selector|^Endpoints"
+Selector:                 app=wrong-app
+Endpoints:                
+
+$ (fix: put the selector back)
+$ kubectl apply -f mini-project/service.yaml
+service/troubleshooting-service configured
+
+$ kubectl get endpoints troubleshooting-service
+Warning: v1 Endpoints is deprecated in v1.33+; use discovery.k8s.io/v1 EndpointSlice
+NAME                      ENDPOINTS                         AGE
+troubleshooting-service   10.244.0.236:80,10.244.0.237:80   29s
+
+$ kubectl exec troubleshooting-app-59d4957864-mfbdj -- curl -s http://troubleshooting-service | grep '<title>'
+<title>Welcome to nginx!</title>
+
+$ kubectl exec troubleshooting-app-59d4957864-mfbdj -- getent hosts troubleshooting-service
+10.102.123.89   troubleshooting-service.default.svc.cluster.local
+
+$ kubectl delete pod project-broken-pod --grace-period=1
+pod "project-broken-pod" deleted from default namespace
+
+$ kubectl delete -f mini-project/deployment.yaml -f mini-project/service.yaml
+deployment.apps "troubleshooting-app" deleted from default namespace
+service "troubleshooting-service" deleted from default namespace
+

@@ -1,0 +1,42 @@
+########## Task 2: ErrImagePull and ImagePullBackOff ##########
+$ (IDENTIFY: ErrImagePull is the failed pull, ImagePullBackOff is kubelet waiting before it tries again)
+$ kubectl apply -f 07-imagepullbackoff/broken-pod.yaml
+pod/image-demo created
+
+$ (watching pod image-demo (status every 3 s))
++  0s  image-demo  0/1 ContainerCreating 0
++  3s  image-demo  0/1 ErrImagePull 0
++ 16s  image-demo  0/1 ImagePullBackOff 0
+
+$ (INVESTIGATE)
+$ kubectl get pod image-demo -o jsonpath="image: {.spec.containers[0].image}{\"\n\"}waiting: {.status.containerStatuses[0].state.waiting.reason}{\"\n\"}"
+image: nginx:this-image-does-not-exist
+waiting: ImagePullBackOff
+
+$ kubectl describe pod image-demo | grep -A12 "^Events" | grep -E "Pulling|Failed|BackOff"
+  Warning  Failed     13s               kubelet            spec.containers{app}: Failed to pull image "nginx:this-image-does-not-exist": rpc error: code = NotFound desc = failed to pull and unpack image "docker.io/library/nginx:this-image-does-not-exist": failed to resolve reference "docker.io/library/nginx:this-image-does-not-exist": docker.io/library/nginx:this-image-does-not-exist: not found
+  Warning  Failed     13s               kubelet            spec.containers{app}: Error: ErrImagePull
+  Normal   BackOff    13s               kubelet            spec.containers{app}: Back-off pulling image "nginx:this-image-does-not-exist"
+  Warning  Failed     13s               kubelet            spec.containers{app}: Error: ImagePullBackOff
+  Normal   Pulling    1s (x2 over 16s)  kubelet            spec.containers{app}: Pulling image "nginx:this-image-does-not-exist"
+
+$ (ROOT CAUSE: the tag nginx:this-image-does-not-exist is not in Docker Hub)
+$ (FIX: the image is one of the few fields that can be changed on a running Pod)
+$ kubectl apply -f 07-imagepullbackoff/fixed-pod.yaml
+pod/image-demo configured
+
+$ kubectl wait --for=condition=Ready pod/image-demo --timeout=120s
+pod/image-demo condition met
+
+$ (VERIFY)
+$ kubectl get pod image-demo
+NAME         READY   STATUS    RESTARTS   AGE
+image-demo   1/1     Running   0          17s
+
+$ kubectl describe pod image-demo | grep -A15 "^Events" | grep -E "Killing|Pulled|Started" | tail -3
+  Normal   Pulled     0s                kubelet            spec.containers{app}: Container image "nginx:1.27" already present on machine and can be accessed by the pod
+  Normal   Started    0s                kubelet            spec.containers{app}: Container started
+
+$ kubectl delete pod image-demo --grace-period=1
+pod "image-demo" deleted from default namespace
+

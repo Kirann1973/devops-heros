@@ -1,0 +1,57 @@
+########## Task 2: CrashLoopBackOff ##########
+$ (IDENTIFY)
+$ kubectl apply -f 06-crashloopbackoff/broken-pod.yaml
+pod/crash-demo created
+
+$ (watching pod crash-demo (status every 3 s))
++  0s  crash-demo  0/1 ContainerCreating 0
++  3s  crash-demo  0/1 Error 1
++ 16s  crash-demo  0/1 Error 2
++ 41s  crash-demo  0/1 Error 3
+
+$ kubectl get pod crash-demo
+NAME         READY   STATUS    RESTARTS      AGE
+crash-demo   1/1     Running   4 (51s ago)   91s
+
+$ (INVESTIGATE: logs of the current and of the previous (crashed) container)
+$ kubectl logs crash-demo
+Application starting...
+Something went wrong!
+
+$ kubectl logs crash-demo --previous
+unable to retrieve container logs for containerd://f54939e53786996ba2a2b6b6c1be4c131a80483c5c7df5acaee8cbf019ded3a4
+$ kubectl describe pod crash-demo | grep -E -A4 "State:|Last State:" | grep -E "State|Reason|Exit Code"
+    State:          Terminated
+      Reason:       Error
+      Exit Code:    1
+    Last State:     Terminated
+      Reason:       Error
+      Exit Code:    1
+
+$ kubectl describe pod crash-demo | grep -E "Restart Count|BackOff"
+    Restart Count:  4
+  Warning  BackOff    0s (x4 over 89s)  kubelet            spec.containers{app}: Back-off restarting failed container app in pod crash-demo_default(aaf1770f-c173-4ddb-97c2-b2b8d9dc53ce)
+
+$ (ROOT CAUSE: the command ends with "exit 1", the container exits with an error, kubelet restarts it with a growing delay)
+$ (FIX: the command cannot be changed on a running Pod, so delete and apply the fixed Pod)
+$ kubectl delete pod crash-demo --grace-period=1
+pod "crash-demo" deleted from default namespace
+
+$ kubectl apply -f 06-crashloopbackoff/fixed-pod.yaml
+pod/crash-demo created
+
+$ kubectl wait --for=condition=Ready pod/crash-demo --timeout=60s
+pod/crash-demo condition met
+
+$ (VERIFY)
+$ kubectl get pod crash-demo
+NAME         READY   STATUS    RESTARTS   AGE
+crash-demo   1/1     Running   0          1s
+
+$ kubectl logs crash-demo
+Application starting...
+Application is healthy
+
+$ kubectl delete pod crash-demo --grace-period=1
+pod "crash-demo" deleted from default namespace
+
