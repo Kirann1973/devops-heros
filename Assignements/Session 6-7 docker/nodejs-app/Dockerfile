@@ -1,5 +1,5 @@
-FROM node:18-alpine
+FROM node:20-alpine
 WORKDIR /app
-COPY server.js .
-EXPOSE 8080
-CMD ["node", "server.js"]
+COPY package.json server.js ./
+EXPOSE 3000
+CMD ["npm", "start"]
