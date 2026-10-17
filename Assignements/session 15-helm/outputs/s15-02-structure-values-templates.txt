@@ -1,0 +1,95 @@
+########## Chart structure, Chart.yaml, values.yaml and templates ##########
+$ (03 simple chart: the minimum a chart needs)
+$ find 03-chart-structure/simple-chart -type f | sort
+03-chart-structure/simple-chart/Chart.yaml
+03-chart-structure/simple-chart/templates/deployment.yaml
+03-chart-structure/simple-chart/templates/service.yaml
+03-chart-structure/simple-chart/values.yaml
+
+$ helm template demo 03-chart-structure/simple-chart
+---
+# Source: simple-chart/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-svc
+spec:
+  selector:
+    app: demo
+  ports:
+    - port: 80
+      targetPort: 80
+---
+# Source: simple-chart/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo
+  template:
+    metadata:
+      labels:
+        app: demo
+    spec:
+      containers:
+        - name: app
+          image: "nginx:latest"
+          ports:
+            - containerPort: 80
+
+$ (04 Chart.yaml: version = chart version, appVersion = app version)
+$ grep -vE '^\s*#|^\s*$' 04-chart-yaml/Chart.yaml
+apiVersion: v2
+name: my-app
+description: A learning chart for the Chart.yaml topic
+type: application
+version: 0.1.0
+appVersion: "1.0"
+keywords:
+  - nginx
+  - web
+maintainers:
+  - name: Student
+    email: student@example.com
+
+$ (05 values: defaults, then -f file, then --set (the last one wins))
+$ helm template demo 05-values-yaml/my-app | grep -E 'replicas:|image:'
+  replicas: 1
+          image: "nginx:1.16.0"
+      image: busybox
+
+$ helm template demo 05-values-yaml/my-app -f 05-values-yaml/values-prod.yaml | grep -E 'replicas:|image:'
+  replicas: 5
+          image: "nginx:latest"
+      image: busybox
+
+$ helm template demo 05-values-yaml/my-app -f 05-values-yaml/values-prod.yaml --set replicaCount=2 --set image.tag=1.27 | grep -E 'replicas:|image:'
+  replicas: 2
+          image: "nginx:1.27"
+      image: busybox
+
+$ (06 templates: .Release.Name, .Values and an if block)
+$ helm template kiran 06-templates/template-demo | grep -E '^kind:|name:|replicas:|image:'
+kind: Service
+  name: kiran-svc
+kind: Deployment
+  name: kiran-app
+  replicas: 2
+        - name: app
+          image: "nginx:latest"
+
+$ helm template kiran 06-templates/template-demo --set service.enabled=false | grep -E '^kind:'
+kind: Deployment
+
+$ (dry run: the API server validates the rendered YAML, nothing is created)
+$ helm install kiran 06-templates/template-demo --dry-run=server | grep -E '^NAME|^STATUS|^kind:'
+NAME: kiran
+NAMESPACE: default
+STATUS: pending-install
+kind: Service
+kind: Deployment
+

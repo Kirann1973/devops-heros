@@ -1,0 +1,85 @@
+########## Helm setup and helm create ##########
+$ (helm is not installed: install it with the official script)
+$ curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+Downloading https://get.helm.sh/helm-v3.22.1-linux-arm64.tar.gz
+Verifying checksum... Done.
+Preparing to install helm into /usr/local/bin
+helm installed into /usr/local/bin/helm
+
+$ helm version
+version.BuildInfo{Version:"v3.22.1", GitCommit:"d6c1a0e4027caa6abc7892e7ea9f0cda7447baa3", GitTreeState:"clean", GoVersion:"go1.26.9"}
+
+$ kubectl config current-context
+minikube
+
+$ kubectl get nodes
+NAME       STATUS   ROLES           AGE    VERSION
+minikube   Ready    control-plane   155m   v1.37.0
+
+$ (helm create: generate a complete starter chart)
+$ cd /home/ubuntu/helm-kiran && helm create kiran-app; cd - >/dev/null
+Creating kiran-app
+
+$ find /home/ubuntu/helm-kiran/kiran-app | sed 's|/home/ubuntu/helm-kiran/||' | sort
+kiran-app
+kiran-app/.helmignore
+kiran-app/Chart.yaml
+kiran-app/charts
+kiran-app/templates
+kiran-app/templates/NOTES.txt
+kiran-app/templates/_helpers.tpl
+kiran-app/templates/deployment.yaml
+kiran-app/templates/hpa.yaml
+kiran-app/templates/httproute.yaml
+kiran-app/templates/ingress.yaml
+kiran-app/templates/service.yaml
+kiran-app/templates/serviceaccount.yaml
+kiran-app/templates/tests
+kiran-app/templates/tests/test-connection.yaml
+kiran-app/values.yaml
+
+$ grep -vE '^\s*#|^\s*$' /home/ubuntu/helm-kiran/kiran-app/Chart.yaml
+apiVersion: v2
+name: kiran-app
+description: A Helm chart for Kubernetes
+type: application
+version: 0.1.0
+appVersion: "1.16.0"
+
+$ grep -E '^replicaCount|^image:|^  repository|^  tag|^service:|^  type|^  port|^ingress:|^  enabled|^autoscaling:' /home/ubuntu/helm-kiran/kiran-app/values.yaml
+replicaCount: 1
+image:
+  repository: nginx
+  tag: ""
+service:
+  type: ClusterIP
+  port: 80
+ingress:
+  enabled: false
+  enabled: false
+autoscaling:
+  enabled: false
+
+$ (helm lint: check the chart for errors)
+$ helm lint /home/ubuntu/helm-kiran/kiran-app
+==> Linting /home/ubuntu/helm-kiran/kiran-app
+[INFO] Chart.yaml: icon is recommended
+
+1 chart(s) linted, 0 chart(s) failed
+
+$ (helm template: render the YAML locally, nothing is sent to the cluster)
+$ helm template kiran-app /home/ubuntu/helm-kiran/kiran-app | grep -E '^# Source|^kind:'
+# Source: kiran-app/templates/serviceaccount.yaml
+kind: ServiceAccount
+# Source: kiran-app/templates/service.yaml
+kind: Service
+# Source: kiran-app/templates/deployment.yaml
+kind: Deployment
+# Source: kiran-app/templates/tests/test-connection.yaml
+kind: Pod
+
+$ helm template kiran-app /home/ubuntu/helm-kiran/kiran-app --set replicaCount=3 --set image.tag=1.27 | grep -E 'replicas:|image:'
+  replicas: 3
+          image: "nginx:1.27"
+      image: busybox
+

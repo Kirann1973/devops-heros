@@ -1,0 +1,159 @@
+########## Task 1: helm install, list, status, get, upgrade, history, rollback, uninstall ##########
+$ (helm install: create a release (revision 1))
+$ helm install kiran-app /home/ubuntu/helm-kiran/kiran-app --set image.tag=1.27 --wait --timeout 180s
+NAME: kiran-app
+LAST DEPLOYED: Sun Oct 18 03:33:59 2026
+NAMESPACE: default
+STATUS: deployed
+REVISION: 1
+NOTES:
+1. Get the application URL by running these commands:
+  export POD_NAME=$(kubectl get pods --namespace default -l "app.kubernetes.io/name=kiran-app,app.kubernetes.io/instance=kiran-app" -o jsonpath="{.items[0].metadata.name}")
+  export CONTAINER_PORT=$(kubectl get pod --namespace default $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
+  echo "Visit http://127.0.0.1:8080 to use your application"
+  kubectl --namespace default port-forward $POD_NAME 8080:$CONTAINER_PORT
+
+$ (helm list: all releases in the namespace)
+$ helm list
+NAME     	NAMESPACE	REVISION	UPDATED                                	STATUS  	CHART          	APP VERSION
+kiran-app	default  	1       	2026-10-18 03:33:59.810546928 +0530 IST	deployed	kiran-app-0.1.0	1.16.0     
+
+$ (helm status: state of one release (+ its NOTES))
+$ helm status kiran-app
+NAME: kiran-app
+LAST DEPLOYED: Sun Oct 18 03:33:59 2026
+NAMESPACE: default
+STATUS: deployed
+REVISION: 1
+NOTES:
+1. Get the application URL by running these commands:
+  export POD_NAME=$(kubectl get pods --namespace default -l "app.kubernetes.io/name=kiran-app,app.kubernetes.io/instance=kiran-app" -o jsonpath="{.items[0].metadata.name}")
+  export CONTAINER_PORT=$(kubectl get pod --namespace default $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
+  echo "Visit http://127.0.0.1:8080 to use your application"
+  kubectl --namespace default port-forward $POD_NAME 8080:$CONTAINER_PORT
+
+$ (helm get: what Helm stored for this release)
+$ helm get values kiran-app
+USER-SUPPLIED VALUES:
+image:
+  tag: "1.27"
+
+$ helm get values kiran-app --all | grep -E "^replicaCount|^  tag|^  repository"
+  repository: nginx
+  tag: "1.27"
+replicaCount: 1
+
+$ helm get manifest kiran-app | grep -E '^# Source|^kind:|image:'
+# Source: kiran-app/templates/serviceaccount.yaml
+kind: ServiceAccount
+# Source: kiran-app/templates/service.yaml
+kind: Service
+# Source: kiran-app/templates/deployment.yaml
+kind: Deployment
+          image: "nginx:1.27"
+
+$ helm get notes kiran-app | head -6
+NOTES:
+1. Get the application URL by running these commands:
+  export POD_NAME=$(kubectl get pods --namespace default -l "app.kubernetes.io/name=kiran-app,app.kubernetes.io/instance=kiran-app" -o jsonpath="{.items[0].metadata.name}")
+  export CONTAINER_PORT=$(kubectl get pod --namespace default $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
+  echo "Visit http://127.0.0.1:8080 to use your application"
+  kubectl --namespace default port-forward $POD_NAME 8080:$CONTAINER_PORT
+
+$ helm get metadata kiran-app
+NAME: kiran-app
+CHART: kiran-app
+VERSION: 0.1.0
+APP_VERSION: 1.16.0
+ANNOTATIONS: 
+DEPENDENCIES: 
+NAMESPACE: default
+REVISION: 1
+STATUS: deployed
+DEPLOYED_AT: 2026-10-18T03:33:59+05:30
+
+$ kubectl get deploy,svc,pods -l app.kubernetes.io/instance=kiran-app
+NAME                        READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/kiran-app   1/1     1            1           3s
+
+NAME                TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)   AGE
+service/kiran-app   ClusterIP   10.104.88.41   <none>        80/TCP    3s
+
+NAME                             READY   STATUS    RESTARTS   AGE
+pod/kiran-app-55f77f47c9-2nbs2   1/1     Running   0          3s
+
+$ (helm upgrade: change the release, creates revision 2)
+$ helm upgrade kiran-app /home/ubuntu/helm-kiran/kiran-app --set image.tag=1.27 --set replicaCount=2 --wait --timeout 180s
+Release "kiran-app" has been upgraded. Happy Helming!
+NAME: kiran-app
+LAST DEPLOYED: Sun Oct 18 03:34:02 2026
+NAMESPACE: default
+STATUS: deployed
+REVISION: 2
+NOTES:
+1. Get the application URL by running these commands:
+  export POD_NAME=$(kubectl get pods --namespace default -l "app.kubernetes.io/name=kiran-app,app.kubernetes.io/instance=kiran-app" -o jsonpath="{.items[0].metadata.name}")
+  export CONTAINER_PORT=$(kubectl get pod --namespace default $POD_NAME -o jsonpath="{.spec.containers[0].ports[0].containerPort}")
+  echo "Visit http://127.0.0.1:8080 to use your application"
+  kubectl --namespace default port-forward $POD_NAME 8080:$CONTAINER_PORT
+
+$ kubectl get pods -l app.kubernetes.io/instance=kiran-app
+NAME                         READY   STATUS    RESTARTS   AGE
+kiran-app-55f77f47c9-2nbs2   1/1     Running   0          5s
+kiran-app-55f77f47c9-jxxdn   1/1     Running   0          2s
+
+$ (helm history: every revision of the release)
+$ helm history kiran-app
+REVISION	UPDATED                 	STATUS    	CHART          	APP VERSION	DESCRIPTION     
+1       	Sun Oct 18 03:33:59 2026	superseded	kiran-app-0.1.0	1.16.0     	Install complete
+2       	Sun Oct 18 03:34:02 2026	deployed  	kiran-app-0.1.0	1.16.0     	Upgrade complete
+
+$ (helm rollback: go back to revision 1 (creates revision 3))
+$ helm rollback kiran-app 1 --wait --timeout 180s
+Rollback was a success! Happy Helming!
+
+$ kubectl get pods -l app.kubernetes.io/instance=kiran-app
+NAME                         READY   STATUS    RESTARTS   AGE
+kiran-app-55f77f47c9-2nbs2   1/1     Running   0          7s
+
+$ helm history kiran-app
+REVISION	UPDATED                 	STATUS    	CHART          	APP VERSION	DESCRIPTION     
+1       	Sun Oct 18 03:33:59 2026	superseded	kiran-app-0.1.0	1.16.0     	Install complete
+2       	Sun Oct 18 03:34:02 2026	superseded	kiran-app-0.1.0	1.16.0     	Upgrade complete
+3       	Sun Oct 18 03:34:04 2026	deployed  	kiran-app-0.1.0	1.16.0     	Rollback to 1   
+
+$ (Helm 3 keeps every revision as a Secret in the namespace)
+$ kubectl get secrets -l owner=helm,name=kiran-app
+NAME                              TYPE                 DATA   AGE
+sh.helm.release.v1.kiran-app.v1   helm.sh/release.v1   1      7s
+sh.helm.release.v1.kiran-app.v2   helm.sh/release.v1   1      4s
+sh.helm.release.v1.kiran-app.v3   helm.sh/release.v1   1      2s
+
+$ (helm upgrade --install: installs if new, upgrades if it exists (the CI/CD way))
+$ helm upgrade --install web-app 07-install-upgrade/app-chart --wait --timeout 180s | grep -E '^NAME|^STATUS|^REVISION'
+NAME: web-app
+NAMESPACE: default
+STATUS: deployed
+REVISION: 1
+
+$ helm upgrade --install web-app 07-install-upgrade/app-chart --set replicaCount=3 --wait --timeout 180s | grep -E 'upgraded|^STATUS|^REVISION'
+Release "web-app" has been upgraded. Happy Helming!
+STATUS: deployed
+REVISION: 2
+
+$ helm list
+NAME     	NAMESPACE	REVISION	UPDATED                                	STATUS  	CHART          	APP VERSION
+kiran-app	default  	3       	2026-10-18 03:34:04.56016636 +0530 IST 	deployed	kiran-app-0.1.0	1.16.0     
+web-app  	default  	2       	2026-10-18 03:34:20.968087412 +0530 IST	deployed	app-chart-0.1.0	1.0        
+
+$ (helm uninstall: removes the release, its objects and its history)
+$ helm uninstall kiran-app web-app --wait
+release "kiran-app" uninstalled
+release "web-app" uninstalled
+
+$ helm list --all
+NAME	NAMESPACE	REVISION	UPDATED	STATUS	CHART	APP VERSION
+
+$ kubectl get secrets -l owner=helm
+No resources found in default namespace.
+

@@ -1,0 +1,74 @@
+########## Deploying an application: guestbook chart (lint, install, upgrade, rollback) ##########
+$ helm lint 09-deploying-application/guestbook-chart
+==> Linting 09-deploying-application/guestbook-chart
+[INFO] Chart.yaml: icon is recommended
+
+1 chart(s) linted, 0 chart(s) failed
+
+$ helm install guestbook 09-deploying-application/guestbook-chart --set image.tag=1.27 --wait --timeout 180s | grep -E '^NAME|^STATUS|^REVISION'
+NAME: guestbook
+NAMESPACE: default
+STATUS: deployed
+REVISION: 1
+
+$ kubectl get deploy/guestbook-app svc/guestbook-svc configmap/guestbook-config
+NAME                            READY   UP-TO-DATE   AVAILABLE   AGE
+deployment.apps/guestbook-app   1/1     1            1           2s
+
+NAME                    TYPE       CLUSTER-IP      EXTERNAL-IP   PORT(S)        AGE
+service/guestbook-svc   NodePort   10.100.89.178   <none>        80:30080/TCP   2s
+
+NAME                         DATA   AGE
+configmap/guestbook-config   2      2s
+
+$ kubectl exec deploy/guestbook-app -- printenv welcome appName
+Welcome to the Guestbook!
+My Guestbook
+
+$ curl -s http://$(minikube ip):30080 | grep '<title>'
+<title>Welcome to nginx!</title>
+
+$ (upgrade: change the ConfigMap values)
+$ helm upgrade guestbook 09-deploying-application/guestbook-chart --reuse-values --set config.welcomeMessage='Welcome from Kiran N - Roll No 10446' --set config.appName='Kiran Guestbook' --wait | grep -E 'upgraded|^REVISION'
+Release "guestbook" has been upgraded. Happy Helming!
+REVISION: 2
+
+$ kubectl get configmap guestbook-config -o jsonpath="{.data}{\"\n\"}"
+{"appName":"Kiran Guestbook","welcome":"Welcome from Kiran N - Roll No 10446"}
+
+$ (the running pod still has the OLD values: env from a ConfigMap is read only when the container starts)
+$ kubectl exec deploy/guestbook-app -- printenv welcome appName
+Welcome to the Guestbook!
+My Guestbook
+
+$ kubectl rollout restart deploy/guestbook-app && kubectl rollout status deploy/guestbook-app --timeout=120s
+deployment.apps/guestbook-app restarted
+Waiting for deployment "guestbook-app" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "guestbook-app" rollout to finish: 1 old replicas are pending termination...
+deployment "guestbook-app" successfully rolled out
+
+$ kubectl exec deploy/guestbook-app -- printenv welcome appName
+Welcome from Kiran N - Roll No 10446
+Kiran Guestbook
+
+$ helm history guestbook
+REVISION	UPDATED                 	STATUS    	CHART                	APP VERSION	DESCRIPTION     
+1       	Sun Oct 18 03:36:56 2026	superseded	guestbook-chart-0.1.0	1.0        	Install complete
+2       	Sun Oct 18 03:36:58 2026	deployed  	guestbook-chart-0.1.0	1.0        	Upgrade complete
+
+$ (rollback to revision 1)
+$ helm rollback guestbook 1 --wait
+Rollback was a success! Happy Helming!
+
+$ kubectl get configmap guestbook-config -o jsonpath="{.data}{\"\n\"}"
+{"appName":"My Guestbook","welcome":"Welcome to the Guestbook!"}
+
+$ helm history guestbook
+REVISION	UPDATED                 	STATUS    	CHART                	APP VERSION	DESCRIPTION     
+1       	Sun Oct 18 03:36:56 2026	superseded	guestbook-chart-0.1.0	1.0        	Install complete
+2       	Sun Oct 18 03:36:58 2026	superseded	guestbook-chart-0.1.0	1.0        	Upgrade complete
+3       	Sun Oct 18 03:36:59 2026	deployed  	guestbook-chart-0.1.0	1.0        	Rollback to 1   
+
+$ helm uninstall guestbook --wait
+release "guestbook" uninstalled
+

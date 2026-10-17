@@ -1,0 +1,96 @@
+########## Task 1: helm repo and helm search ##########
+$ (helm repo: add chart repositories)
+$ helm repo add podinfo https://stefanprodan.github.io/podinfo
+"podinfo" already exists with the same configuration, skipping
+
+$ helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+"ingress-nginx" already exists with the same configuration, skipping
+
+$ helm repo update
+Hang tight while we grab the latest from your chart repositories...
+...Successfully got an update from the "ingress-nginx" chart repository
+...Successfully got an update from the "podinfo" chart repository
+Update Complete. ⎈Happy Helming!⎈
+
+$ helm repo list
+NAME         	URL                                       
+podinfo      	https://stefanprodan.github.io/podinfo    
+ingress-nginx	https://kubernetes.github.io/ingress-nginx
+
+$ (helm search repo: search the repos I added)
+$ helm search repo podinfo
+NAME           	CHART VERSION	APP VERSION	DESCRIPTION                      
+podinfo/podinfo	6.15.0       	6.15.0     	Podinfo Helm chart for Kubernetes
+
+$ helm search repo ingress-nginx/ingress-nginx --versions | head -5
+NAME                       	CHART VERSION	APP VERSION	DESCRIPTION                                       
+ingress-nginx/ingress-nginx	4.15.1       	1.15.1     	Ingress controller for Kubernetes using NGINX a...
+ingress-nginx/ingress-nginx	4.15.0       	1.15.0     	Ingress controller for Kubernetes using NGINX a...
+ingress-nginx/ingress-nginx	4.14.5       	1.14.5     	Ingress controller for Kubernetes using NGINX a...
+ingress-nginx/ingress-nginx	4.14.4       	1.14.4     	Ingress controller for Kubernetes using NGINX a...
+
+$ (helm search hub: search Artifact Hub (all public charts))
+$ helm search hub nginx --max-col-width 50 | head -8
+URL                                               	CHART VERSION  	APP VERSION                                     	DESCRIPTION                                       
+https://artifacthub.io/packages/helm/cloudpirat...	0.16.12        	1.31.6                                          	Nginx is a high-performance HTTP server and rev...
+https://artifacthub.io/packages/helm/quench-ngi...	0.0.16         	1.30.5                                          	High-performance web server, reverse proxy, and...
+https://artifacthub.io/packages/helm/niceos/nginx 	1.31.1+niceos.2	1.31.1                                          	Bitnami-compatible NGINX Helm chart for NiceOS    
+https://artifacthub.io/packages/helm/dysnix/nginx 	7.1.8          	1.19.4                                          	Chart for the nginx server                        
+https://artifacthub.io/packages/helm/jfrog/nginx  	15.1.5         	1.25.2                                          	NGINX Open Source is a web server that can be a...
+https://artifacthub.io/packages/helm/ashu-nginx...	0.1.0          	1.16.0                                          	A Helm chart for Kubernetes                       
+https://artifacthub.io/packages/helm/bitnami-ak...	13.2.12        	1.23.2                                          	NGINX Open Source is a web server that can be a...
+
+$ (look at a chart before installing it)
+$ helm show chart podinfo/podinfo
+apiVersion: v1
+appVersion: 6.15.0
+description: Podinfo Helm chart for Kubernetes
+home: https://github.com/stefanprodan/podinfo
+kubeVersion: '>=1.23.0-0'
+maintainers:
+- email: stefanprodan@users.noreply.github.com
+  name: stefanprodan
+name: podinfo
+sources:
+- https://github.com/stefanprodan/podinfo
+version: 6.15.0
+
+
+$ helm show values podinfo/podinfo | grep -E '^replicaCount|^ui:|^  message|^  color'
+replicaCount: 1
+ui:
+  color: "#34577c"
+  message: ""
+
+$ mkdir -p /home/ubuntu/helm-kiran && cd /home/ubuntu/helm-kiran && helm pull podinfo/podinfo --untar && ls podinfo; cd - >/dev/null
+Chart.yaml
+LICENSE
+README.md
+templates
+values-prod.yaml
+values.yaml
+
+$ (install a chart from a repo, with my own values)
+$ helm install my-podinfo podinfo/podinfo --set ui.message='Hello from Kiran N - Roll No 10446' --set replicaCount=2 --wait --timeout 180s | grep -E '^NAME|^STATUS|^REVISION'
+NAME: my-podinfo
+NAMESPACE: default
+STATUS: deployed
+REVISION: 1
+
+$ kubectl rollout status deploy/my-podinfo --timeout=120s
+deployment "my-podinfo" successfully rolled out
+
+$ kubectl get pods | grep -E "NAME|my-podinfo"
+NAME                          READY   STATUS    RESTARTS   AGE
+my-podinfo-78889b5df9-6bldl   1/1     Running   0          15s
+my-podinfo-78889b5df9-9rh54   1/1     Running   0          15s
+
+$ (open the app through a port-forward and read its JSON answer)
+$ curl -s http://localhost:9898 | grep -E 'hostname|message|version'
+  "hostname": "my-podinfo-78889b5df9-6bldl",
+  "version": "6.15.0",
+  "message": "Hello from Kiran N - Roll No 10446",
+
+$ helm uninstall my-podinfo --wait
+release "my-podinfo" uninstalled
+

@@ -137,6 +137,7 @@ run 'helm search hub nginx --max-col-width 50 | head -8'
 note 'look at a chart before installing it'
 run 'helm show chart podinfo/podinfo'
 run "helm show values podinfo/podinfo | grep -E '^replicaCount|^ui:|^  message|^  color'"
+rm -rf "$WORK/podinfo"
 run "mkdir -p $WORK && cd $WORK && helm pull podinfo/podinfo --untar && ls podinfo; cd - >/dev/null"
 note 'install a chart from a repo, with my own values'
 run "helm install my-podinfo podinfo/podinfo --set ui.message='Hello from Kiran N - Roll No 10446' --set replicaCount=2 --wait --timeout 180s | grep -E '^NAME|^STATUS|^REVISION'"
