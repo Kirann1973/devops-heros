@@ -1,0 +1,75 @@
+========== nodejs-app (nodejs-app) ==========
+$ docker build -t nodejs-app ./nodejs-app
+sha256:44fa2f40f0c8baf09e88bcad10f0590f4db7b92c45f7f932d241a822108636a2
+$ docker run -d --name nodejs-app -p 3001:3000 nodejs-app
+4d12d0c5c506990ea31912fe6313ba28a2d11eb960ca63e08f979a8b4e466d6d
+========== python-app (python-app) ==========
+$ docker build -t python-app ./python-app
+sha256:1e8c9d8e120e11f4fa56e206270320f4bde34e17b2f29c2a2a056b6452e114af
+$ docker run -d --name python-app -p 5001:5000 python-app
+174fa6b943b6e98cd99c489fc811ad2a22d75053fac180be45b9367a76738a26
+========== java-app (java-app) ==========
+$ docker build -t java-app ./java-app
+sha256:340f276c2ea09bd14f4481394c6ad533284a1f48deee4f2d53d84ef9c5329d0c
+$ docker run -d --name java-app -p 8081:8080 java-app
+a70e130459abe8962190771920b1e779fa4ee4ed25ee14a24162798feafe354f
+========== apache-app (Apache-app) ==========
+$ docker build -t apache-app ./Apache-app
+sha256:6913ac0a0423416a5b4b4e759687d8a681fc690496a49861477395bb74e7f876
+$ docker run -d --name apache-app -p 8082:80 apache-app
+eb6ea4ecf5310934819b267cb3e4f945e260d30a69458b930f7246a20d10f944
+========== react-app (React-app) ==========
+$ docker build -t react-app ./React-app
+sha256:f8779a001864bd6ce838f87c939085bd3f556de6ea95718d6068abc70c01f3ab
+$ docker run -d --name react-app -p 8083:80 react-app
+b0a32080ff50e162effeffd1ea7c4f316f69829726749fdbe2a7b94b9223a1f5
+========== nginx-app (nginx-app) ==========
+$ docker build -t nginx-app ./nginx-app
+sha256:ea3a21705d7302b0ac7e6ed738fb00b778aac9111629892058a470e91de1bfd2
+$ docker run -d --name nginx-app -p 8084:80 nginx-app
+32e9e8cf2693de49d3a87f5275a5cbbb9058e883344d79b3583cca76569af0dd
+========== multi-stage-hw (multi-stage-dockerfile) ==========
+$ docker build -t multi-stage-hw ./multi-stage-dockerfile
+sha256:741b04b60386bf845477b779688212c2d7a788428d923db4e3d9ea9ffeaaa6ed
+$ docker run -d --name multi-stage-hw -p 8080:3000 multi-stage-hw
+2339a3b05de0079b5b2ae6c57c9e6044e4487fa19800207d8d849b8f06ce7c08
+
+Waiting for the apps to start...
+
+========== VERIFY: curl each app ==========
+$ curl -s http://localhost:3001
+HTTP 200  Hello World from Node.js!
+$ curl -s http://localhost:5001
+HTTP 200  Hello World from Python!
+$ curl -s http://localhost:8081
+HTTP 200  Hello World from Java!
+$ curl -s http://localhost:8082
+HTTP 200  title: Apache - Kiran N
+$ curl -s http://localhost:8083
+HTTP 200  title: React - Kiran N
+$ curl -s http://localhost:8084
+HTTP 200  title: Nginx - Kiran N
+$ curl -s http://localhost:8080
+HTTP 200  Hello World from Docker Multi-Stage Build!
+
+========== docker ps ==========
+NAMES            IMAGE            STATUS              PORTS
+multi-stage-hw   multi-stage-hw   Up 8 seconds        0.0.0.0:8080->3000/tcp, [::]:8080->3000/tcp
+nginx-app        nginx-app        Up 31 seconds       0.0.0.0:8084->80/tcp, [::]:8084->80/tcp
+react-app        react-app        Up 31 seconds       0.0.0.0:8083->80/tcp, [::]:8083->80/tcp
+apache-app       apache-app       Up About a minute   0.0.0.0:8082->80/tcp, [::]:8082->80/tcp
+java-app         java-app         Up About a minute   0.0.0.0:8081->8080/tcp, [::]:8081->8080/tcp
+python-app       python-app       Up 2 minutes        0.0.0.0:5001->5000/tcp, [::]:5001->5000/tcp
+nodejs-app       nodejs-app       Up 2 minutes        0.0.0.0:3001->3000/tcp, [::]:3001->3000/tcp
+
+========== docker images ==========
+REPOSITORY        TAG             SIZE
+multi-stage-hw    latest          250MB
+nginx-app         latest          102MB
+react-app         latest          102MB
+apache-app        latest          115MB
+java-app          latest          286MB
+python-app        latest          87.9MB
+nodejs-app        latest          194MB
+
+Saved all output to docker_output.txt
