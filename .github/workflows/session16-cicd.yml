@@ -1,0 +1,241 @@
+# Session 16 - CI/CD with GitHub Actions | Kiran N - Roll No: 10446
+# Project: Assignements/session 16-github-actions/10-final-cicd-pipeline
+#
+#   push / PR / manual run
+#        │
+#        ▼
+#   test (Python 3.11 + 3.12)  ──►  security-check
+#        │                               │
+#        ▼                               │
+#   build (build.sh + docker image) ◄────┘ (both must pass before delivery)
+#        │
+#        ▼
+#   deliver  (CD: push image to GitHub Container Registry)
+#        │
+#        ▼
+#   deploy   (CD: pull the image from the registry, run it, smoke test)
+
+name: Session 16 CI/CD (Kiran N - 10446)
+
+on:
+  push:
+    branches: [assignment]
+    paths:
+      - "Assignements/session 16-github-actions/10-final-cicd-pipeline/**"
+      - ".github/workflows/session16-cicd.yml"
+  pull_request:
+    branches: [assignment]
+    paths:
+      - "Assignements/session 16-github-actions/10-final-cicd-pipeline/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  IMAGE_NAME: session16-calculator
+
+jobs:
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    defaults:
+      run:
+        working-directory: "Assignements/session 16-github-actions/10-final-cicd-pipeline"
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Show runner details
+        run: |
+          echo "Runner OS:   $RUNNER_OS / $RUNNER_ARCH"
+          echo "Python:      $(python --version)"
+          echo "Commit:      $GITHUB_SHA"
+          echo "Triggered by $GITHUB_EVENT_NAME from $GITHUB_ACTOR"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        run: pytest -v --junitxml=test-results-py${{ matrix.python-version }}.xml
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: test-report-py${{ matrix.python-version }}
+          path: "Assignements/session 16-github-actions/10-final-cicd-pipeline/test-results-py${{ matrix.python-version }}.xml"
+
+  security-check:
+    name: Security Check
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v6
+
+      - name: Check for sensitive files
+        working-directory: "Assignements/session 16-github-actions/10-final-cicd-pipeline"
+        run: |
+          echo "Checking the project for common sensitive files..."
+          if find . -type f \( -name ".env" -o -name "*.pem" -o -name "*.key" \) | grep .; then
+            echo "Potential sensitive file found."
+            exit 1
+          fi
+          echo "No common sensitive files found."
+
+      - name: Check for hard-coded secrets
+        working-directory: "Assignements/session 16-github-actions/10-final-cicd-pipeline"
+        run: |
+          if grep -rnEi "(AKIA[0-9A-Z]{16}|password\s*=\s*['\"][^'\"]+['\"]|ghp_[0-9A-Za-z]{36})" --include=*.py --include=Dockerfile .; then
+            echo "Possible hard-coded secret found."
+            exit 1
+          fi
+          echo "No hard-coded secrets found."
+
+      - name: Use a repository secret (masked in the log)
+        env:
+          DEMO_SECRET: ${{ secrets.DEMO_SECRET }}
+        run: |
+          if [ -z "$DEMO_SECRET" ]; then
+            echo "DEMO_SECRET is not set in Settings > Secrets and variables > Actions."
+          else
+            echo "DEMO_SECRET is set (${#DEMO_SECRET} characters)."
+            echo "Printing it directly shows only stars: $DEMO_SECRET"
+          fi
+
+  build:
+    name: Build Application + Docker Image
+    needs: test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: "Assignements/session 16-github-actions/10-final-cicd-pipeline"
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v6
+
+      - name: Build application
+        run: |
+          chmod +x build.sh
+          ./build.sh
+
+      - name: Show build output
+        run: cat build/build-info.txt
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: calculator-build
+          path: "Assignements/session 16-github-actions/10-final-cicd-pipeline/build/"
+
+      - name: Build Docker image
+        run: |
+          docker build --build-arg APP_VERSION=${GITHUB_SHA::7} -t $IMAGE_NAME:${GITHUB_SHA::7} .
+          docker image ls $IMAGE_NAME
+
+      - name: Smoke test the container
+        run: |
+          docker run -d --name calc -p 8000:8000 $IMAGE_NAME:${GITHUB_SHA::7}
+          for i in $(seq 1 15); do curl -fs http://localhost:8000/health && break; sleep 1; done
+          echo
+          curl -fs http://localhost:8000/ | grep -o "Kiran N - Roll No 10446"
+          curl -fs "http://localhost:8000/api/add?a=10&b=5"
+          echo
+          docker logs calc
+          docker rm -f calc
+
+      - name: Save image as an artifact
+        run: docker save $IMAGE_NAME:${GITHUB_SHA::7} | gzip > image.tar.gz
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: docker-image
+          path: "Assignements/session 16-github-actions/10-final-cicd-pipeline/image.tar.gz"
+          retention-days: 3
+
+  deliver:
+    name: Deliver (push image to GHCR)
+    needs: [build, security-check]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.push.outputs.image }}
+    steps:
+      - name: Download image artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: docker-image
+
+      - name: Load image
+        run: gunzip -c image.tar.gz | docker load
+
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Tag and push
+        id: push
+        run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE=ghcr.io/$OWNER/$IMAGE_NAME
+          docker tag $IMAGE_NAME:${GITHUB_SHA::7} $IMAGE:${GITHUB_SHA::7}
+          docker tag $IMAGE_NAME:${GITHUB_SHA::7} $IMAGE:latest
+          docker push $IMAGE:${GITHUB_SHA::7}
+          docker push $IMAGE:latest
+          echo "image=$IMAGE:${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    name: Deploy (run the released image)
+    needs: deliver
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Pull and run the image from the registry
+        run: |
+          docker pull ${{ needs.deliver.outputs.image }}
+          docker run -d --name calc -p 8000:8000 ${{ needs.deliver.outputs.image }}
+          for i in $(seq 1 15); do curl -fs http://localhost:8000/health && break; sleep 1; done
+          echo
+
+      - name: Smoke test the deployment
+        run: |
+          curl -fs http://localhost:8000/health
+          echo
+          curl -fs "http://localhost:8000/api/divide?a=10&b=4"
+          echo
+          curl -fs http://localhost:8000/ | grep -o "Kiran N - Roll No 10446"
+          docker inspect --format 'container health: {{.State.Health.Status}}' calc || true
+
+      - name: Write the job summary
+        run: |
+          {
+            echo "## Session 16 deployment (Kiran N - Roll No 10446)"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Image | \`${{ needs.deliver.outputs.image }}\` |"
+            echo "| Commit | \`${GITHUB_SHA::7}\` |"
+            echo "| Health | \`$(curl -fs http://localhost:8000/health)\` |"
+            echo "| 10 / 4 | \`$(curl -fs 'http://localhost:8000/api/divide?a=10&b=4')\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
