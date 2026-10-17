@@ -1,0 +1,26 @@
+# Pretends to be an app logging in to PostgreSQL.
+# The "database" accepts only the exact password "secretpassword".
+# Kiran N | Roll No: 10446
+apiVersion: v1
+kind: Pod
+metadata:
+  name: db-login-check
+spec:
+  restartPolicy: Never
+  containers:
+    - name: login
+      image: busybox:1.36
+      command:
+        - sh
+        - -c
+        - |
+          echo "Connecting as $POSTGRES_USER (password length: ${#POSTGRES_PASSWORD})"
+          if [ "$POSTGRES_PASSWORD" = "secretpassword" ]; then
+            echo "LOGIN OK: connected to yatri_production_db"
+          else
+            echo "FATAL: password authentication failed for user \"$POSTGRES_USER\""
+            exit 1
+          fi
+      envFrom:
+        - secretRef:
+            name: db-login-secret

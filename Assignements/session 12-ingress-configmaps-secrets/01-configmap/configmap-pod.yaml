@@ -1,0 +1,32 @@
+# Pod that reads the ConfigMap "yatri-app-config" in two ways:
+#   1. as environment variables (envFrom + one single key)
+#   2. as files in a mounted volume (/etc/config/<KEY>)
+# Kiran N | Roll No: 10446
+apiVersion: v1
+kind: Pod
+metadata:
+  name: configmap-demo
+  labels:
+    app: configmap-demo
+spec:
+  containers:
+    - name: app
+      image: busybox:1.36
+      command: ["sh", "-c", "echo \"configmap-demo started by Kiran N (10446): ENVIRONMENT=$ENVIRONMENT LOG_LEVEL=$LOG_LEVEL\"; sleep 3600"]
+      envFrom:
+        - configMapRef:
+            name: yatri-app-config          # every key becomes an env var
+      env:
+        - name: APP_CURRENCY                # one key under a different name
+          valueFrom:
+            configMapKeyRef:
+              name: yatri-app-config
+              key: DEFAULT_CURRENCY
+      volumeMounts:
+        - name: config-volume
+          mountPath: /etc/config
+          readOnly: true
+  volumes:
+    - name: config-volume
+      configMap:
+        name: yatri-app-config              # every key becomes a file

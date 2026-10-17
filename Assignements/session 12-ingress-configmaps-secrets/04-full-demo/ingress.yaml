@@ -3,9 +3,14 @@ kind: Ingress
 metadata:
   name: yatri-ingress
   namespace: default
+  labels:
+    app: yatri-app
   annotations:
+    # Do not force HTTP -> HTTPS redirect (no TLS cert in this demo)
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    # Allow regex capture groups in path rules
     nginx.ingress.kubernetes.io/use-regex: "true"
+    # Strip /api prefix before forwarding to backend pods
     nginx.ingress.kubernetes.io/rewrite-target: /$2
 spec:
   ingressClassName: nginx
@@ -13,6 +18,7 @@ spec:
     - host: yatri.local
       http:
         paths:
+          # Route /api/* to the backend Python service
           - path: /api(/|$)(.*)
             pathType: ImplementationSpecific
             backend:
@@ -20,6 +26,7 @@ spec:
                 name: yatri-backend-service
                 port:
                   number: 80
+          # Route / (root) to the frontend Nginx service
           - path: /
             pathType: Prefix
             backend:
