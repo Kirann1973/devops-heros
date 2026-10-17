@@ -30,7 +30,7 @@ watch_pod() {
 
 cleanup() {
   kubectl delete pod get-demo describe-demo logs-demo exec-demo events-demo crash-demo image-demo pending-demo \
-    mount-demo config-demo dns-test project-broken-pod --ignore-not-found --grace-period=1 >/dev/null 2>&1
+    mount-demo config-demo dns-test netshoot project-broken-pod --ignore-not-found --grace-period=1 >/dev/null 2>&1
   kubectl delete pod -l tier=triage-gauntlet --ignore-not-found --grace-period=1 >/dev/null 2>&1
   kubectl delete configmap app-settings --ignore-not-found >/dev/null 2>&1
   kubectl delete secret db-credentials --ignore-not-found >/dev/null 2>&1
@@ -211,34 +211,46 @@ run 'kubectl delete -f 09-service-dns-troubleshooting/broken-service.yaml'
 # ---------------------------------------------------------------- 7. DNS and Pod networking
 part7() {
 section s14-07-dns-networking "Task 2: DNS issues and Pod networking"
-run 'kubectl apply -f 09-service-dns-troubleshooting/deployment.yaml -f 09-service-dns-troubleshooting/dns-test-pod.yaml'
-run 'kubectl apply -f 09-service-dns-troubleshooting/service.yaml'
+run 'kubectl apply -f 09-service-dns-troubleshooting/deployment.yaml -f 09-service-dns-troubleshooting/service.yaml'
 note 'with the selector fix from part 6'
 run "kubectl patch svc web-service -p '{\"spec\":{\"selector\":{\"app\":\"web\"}}}'"
-run 'kubectl wait --for=condition=Ready pod/dns-test --timeout=180s'
+run 'kubectl rollout status deployment/web --timeout=120s'
+note 'the instructor dns-test pod did not become Ready in my first run: find out why'
+run 'kubectl apply -f 09-service-dns-troubleshooting/dns-test-pod.yaml'
+kubectl wait --for=condition=Ready pod/dns-test --timeout=60s >/dev/null 2>&1
+run 'kubectl get pod dns-test -o wide'
+run 'kubectl get pod dns-test -o jsonpath="waiting: {.status.containerStatuses[0].state.waiting.reason}  terminated: {.status.containerStatuses[0].state.terminated.reason} {.status.containerStatuses[0].lastState.terminated.reason}{\"\n\"}"'
+run 'kubectl logs dns-test --tail=5 2>&1 | head -5'
+run 'kubectl describe pod dns-test | grep -A20 "^Events" | grep -E "Warning|Failed|BackOff|Pulled|Started" | head -6'
+run 'kubectl get node minikube -o jsonpath="node architecture: {.status.nodeInfo.architecture}{\"\n\"}"'
+run 'kubectl delete pod dns-test --grace-period=1'
+note 'use a multi-arch test pod instead'
+run 'kubectl apply -f 09-service-dns-troubleshooting/netshoot-pod.yaml'
+run 'kubectl wait --for=condition=Ready pod/netshoot --timeout=300s'
 note 'DNS: is CoreDNS running?'
 run 'kubectl get pods -n kube-system -l k8s-app=kube-dns'
 run 'kubectl get svc -n kube-system kube-dns'
-run 'kubectl exec dns-test -- cat /etc/resolv.conf'
+run 'kubectl exec netshoot -- cat /etc/resolv.conf'
 note 'DNS: names that should resolve'
-run 'kubectl exec dns-test -- nslookup kubernetes.default'
-run 'kubectl exec dns-test -- nslookup web-service'
-run 'kubectl exec dns-test -- dig +short web-service.default.svc.cluster.local'
+run 'kubectl exec netshoot -- nslookup kubernetes.default'
+run 'kubectl exec netshoot -- nslookup web-service'
+run 'kubectl exec netshoot -- dig +short web-service.default.svc.cluster.local'
 run 'kubectl get svc web-service -o jsonpath="{.spec.clusterIP}{\"\n\"}"'
 note 'DNS issue: a wrong name (typo) -> NXDOMAIN'
-run 'kubectl exec dns-test -- nslookup web-servcie'
-run 'kubectl exec dns-test -- nslookup web-service.wrong-namespace.svc.cluster.local'
+run 'kubectl exec netshoot -- nslookup web-servcie || true'
+run 'kubectl exec netshoot -- nslookup web-service.wrong-namespace.svc.cluster.local || true'
 note 'DNS issue: a short name only works inside the same namespace (kube-dns is in kube-system)'
-run 'kubectl exec dns-test -- nslookup kube-dns'
-run 'kubectl exec dns-test -- nslookup kube-dns.kube-system'
+run 'kubectl exec netshoot -- nslookup kube-dns || true'
+run 'kubectl exec netshoot -- nslookup kube-dns.kube-system'
 note 'POD NETWORKING: every Pod has its own IP and can reach every other Pod directly'
 run 'kubectl get pods -l app=web -o wide'
 P1=$(kubectl get pods -l app=web -o jsonpath='{.items[0].metadata.name}')
 IP2=$(kubectl get pods -l app=web -o jsonpath='{.items[1].status.podIP}')
 run "kubectl exec $P1 -- curl -s -o /dev/null -w \"$P1 -> pod IP $IP2:80 -> HTTP %{http_code}\n\" http://$IP2"
 run "kubectl exec $P1 -- curl -s -m 3 http://$IP2:8080 || echo \"curl failed (exit \$?): nothing listens on 8080\""
-run "kubectl exec $P1 -- curl -s -o /dev/null -w \"$P1 -> web-service.default.svc.cluster.local -> HTTP %{http_code}\n\" http://web-service.default.svc.cluster.local"
-run 'kubectl delete pod dns-test --grace-period=1'
+run "kubectl exec netshoot -- curl -s -o /dev/null -w \"netshoot -> web-service.default.svc.cluster.local -> HTTP %{http_code}\n\" http://web-service.default.svc.cluster.local"
+run "kubectl exec netshoot -- nc -zv -w 3 $IP2 80"
+run 'kubectl delete pod netshoot --grace-period=1'
 run 'kubectl delete -f 09-service-dns-troubleshooting/deployment.yaml -f 09-service-dns-troubleshooting/service.yaml'
 }
 
@@ -251,7 +263,9 @@ sleep 45
 run 'kubectl get pods -l tier=triage-gauntlet'
 
 note '--- 1. crashloop'
-run 'kubectl logs fail-1-crashloop-pod --previous 2>/dev/null || kubectl logs fail-1-crashloop-pod'
+for i in $(seq 1 30); do kubectl logs fail-1-crashloop-pod 2>/dev/null | grep -q FATAL && break; sleep 2; done
+run 'kubectl logs fail-1-crashloop-pod'
+run 'kubectl describe pod fail-1-crashloop-pod | grep -E "Exit Code|Restart Count" | head -2'
 note 'root cause: DATABASE_URL env var missing -> exit 1. fix: add the env var (and keep the app running)'
 run 'kubectl delete pod fail-1-crashloop-pod --grace-period=1'
 run 'kubectl apply -f scenarios/scenario-1-crashloop/fixed.yaml'
@@ -263,7 +277,7 @@ run 'kubectl apply -f scenarios/scenario-2-imagepull/fixed.yaml'
 
 note '--- 3. pending'
 run 'kubectl describe pod fail-3-pending-pod | grep -A6 "^Events" | grep FailedScheduling'
-run 'kubectl describe node minikube | grep -A3 "^Allocatable" | grep -E "cpu|memory"'
+run 'kubectl describe node minikube | grep -A7 "^Allocatable" | grep -E "cpu|memory"'
 note 'root cause: requests 500 CPU / 1000Gi, the node has far less. fix: realistic requests'
 run 'kubectl delete pod fail-3-pending-pod --grace-period=1'
 run 'kubectl apply -f scenarios/scenario-3-pending/fixed.yaml'
@@ -294,6 +308,7 @@ run 'kubectl get pods -l tier=triage-gauntlet'
 run 'kubectl logs fail-1-crashloop-pod'
 run 'kubectl logs fail-4-dns-failure-pod'
 run 'kubectl logs fail-5-oomkilled-pod'
+for i in $(seq 1 24); do kubectl top pod fail-5-oomkilled-pod >/dev/null 2>&1 && break; sleep 5; done
 run 'kubectl top pod fail-5-oomkilled-pod'
 run 'kubectl delete pod -l tier=triage-gauntlet --grace-period=1'
 run 'kubectl delete namespace production'
