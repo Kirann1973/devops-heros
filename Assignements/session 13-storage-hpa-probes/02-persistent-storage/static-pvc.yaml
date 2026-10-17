@@ -1,0 +1,15 @@
+# PVC that binds to the hand-made PV "student-pv" (static provisioning).
+# storageClassName: "" stops Kubernetes from giving this claim the default
+# StorageClass, so it does not create a new PV and waits for a matching one.
+# Kiran N | Roll No: 10446
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: student-static-pvc
+spec:
+  storageClassName: ""
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 500Mi

@@ -1,0 +1,47 @@
+# yatri-backend for the HPA demo (the Deployment that hpa-backend.yaml scales).
+# Small Python web server on port 5000. CPU request 50m: the HPA target of 50%
+# means about 25m CPU per pod on average.
+# Kiran N | Roll No: 10446
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: yatri-backend
+  labels:
+    app: yatri-backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: yatri-backend
+  template:
+    metadata:
+      labels:
+        app: yatri-backend
+    spec:
+      containers:
+        - name: backend
+          image: python:3.11-alpine3.19
+          command:
+            - python3
+            - -c
+            - |
+              import http.server, socket
+              class Handler(http.server.BaseHTTPRequestHandler):
+                  def do_GET(self):
+                      body = b'{"status":"healthy"}\n' if self.path == '/healthz' else \
+                          ('Yatri backend | Kiran N - Roll No 10446 | pod: %s\n' % socket.gethostname()).encode()
+                      self.send_response(200)
+                      self.end_headers()
+                      self.wfile.write(body)
+                  def log_message(self, *args):
+                      pass
+              http.server.ThreadingHTTPServer(("", 5000), Handler).serve_forever()
+          ports:
+            - containerPort: 5000
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 150m
+              memory: 128Mi
