@@ -1,298 +1,105 @@
-ProcessName                         Id WorkingSet
------------                         -- ----------
-AggregatorHost                    8708   17416192
-AMDRSServ                        16804   97083392
-AMDRSSrcExt                       8572   68079616
-AppActions                       10616   41349120
-AppHelperCap                      6052   48623616
-ApplicationFrameHost             11596   47759360
-atieclxx                          4004   20512768
-atiesrxx                          3456    9375744
-BraveCrashHandler                 4368    1146880
-BraveCrashHandler64               9872    1101824
-CastSrv                           7760   14405632
-chrome                            1200  303587328
-chrome                            4032  105558016
-chrome                            6176  110542848
-chrome                            7496  304439296
-chrome                            7548   57237504
-chrome                           10580   22519808
-chrome                           11908  156860416
-chrome                           13460   20996096
-chrome                           14920   64368640
-chrome                           15016    9809920
-chrome                           15112  316702720
-chrome                           15240  327520256
-chrome                           17764   39112704
-chrome                           23044   33341440
-chrome                           24284  235753472
-chrome                           24500  382541824
-cncmd                            16700    8384512
-Code                              1488  127438848
-Code                              2260  120422400
-Code                              3228  124665856
-Code                              3636  105013248
-Code                              4184  540762112
-Code                              5124  168607744
-Code                              7176  112947200
-Code                              7508  103301120
-Code                              9608  116355072
-Code                              9716  111960064
-Code                             10092   54165504
-Code                             10856  194437120
-Code                             11380  102641664
-Code                             12348  107040768
-Code                             14396  190038016
-Code                             14512  398708736
-Code                             14520  115970048
-Code                             16076  121270272
-Code                             16208  122400768
-Code                             17816  164872192
-Code                             18192   34803712
-Code                             18424  348426240
-Code                             22420  516866048
-com.docker.backend                3592  150994944
-com.docker.backend               18280   64245760
-com.docker.build                  3024   34086912
-conhost                           2124    9859072
-conhost                           6844    9764864
-conhost                          10136    7229440
-conhost                          14060    9850880
-conhost                          15252    9834496
-conhost                          17028    7327744
-conhost                          18272    7536640
-conhost                          18888    9842688
-cowork-svc                        7460   16764928
-CrossDeviceResume                 9904   51130368
-csrss                             1192    6651904
-csrss                             1368    7585792
-ctfmon                           13168   33886208
-DiagsCap                          4132   31510528
-dllhost                           4752    8896512
-dllhost                          19108   11218944
-dllhost                          19240   10924032
-Docker Desktop                    4788   10985472
-Docker Desktop                   15316  129085440
-Docker Desktop                   18940  111079424
-Docker Desktop                   18964   57532416
-Docker Desktop                   20632  154644480
-docker-agent                     20384   55775232
-docker-sandbox                   16368   16359424
-dwm                               1980  107712512
-ETDCtrl                           1976   18378752
-ETDService                        5856    9064448
-explorer                          9428  349270016
-FileCoAuth                        9840   40296448
-FileSyncHelper                   13688   29372416
-fontdrvhost                       1712    4087808
-fontdrvhost                       1716    6881280
-Idle                                 0       8192
-LockApp                          11308   69423104
-LsaIso                            1548    3747840
-lsass                             1556   31477760
-Memory Compression                3352 1348706304
-MicrosoftStartFeedProvider       15456   45989888
-MpDefenderCoreService             5968   25714688
-msedge                            8448   16560128
-msedge                           10404  131207168
-msedge                           10948   43872256
-msedge                           16892   39145472
-msedge                           24296   22704128
-msedgewebview2                    2168   44384256
-msedgewebview2                    4536   60461056
-msedgewebview2                   11932   23158784
-msedgewebview2                   12004  122445824
-msedgewebview2                   12136   15925248
-msedgewebview2                   12432   77512704
-MsMpEng                           5200  360923136
-msrdc                            22756   53264384
-mysqld                            5992   29528064
-mysqld                            6764   95637504
-NetworkCap                        4148   32874496
-NgcIso                            5476    4714496
-NisSrv                           12604   14323712
-NVDisplay.Container               3380   42442752
-NVDisplay.Container               4832   47218688
-OfficeClickToRun                  5940   51535872
-OmenCap                           3256   11841536
-OmenCommandCenterBackground      12676  223727616
-OmenInstallMonitor                5524    8343552
-OneDrive                         13908   99459072
-OneDrive.Sync.Service             8996   31297536
-OpenConsole                       2396   11755520
-OpenConsole                       8184   12337152
-OpenConsole                       9624   12251136
-OpenConsole                      10168   11603968
-OpenConsole                      17336   11530240
-OpenConsole                      22800   11726848
-OpenConsole                      23120   12275712
-OpenConsole                      23144   12296192
-OverlayHelper                     8484   24088576
-pet                              16084    7290880
-PhoneExperienceHost              12884  154947584
-powershell                        1892  101732352
-powershell                        5900   64159744
-powershell                        6364  189710336
-powershell                        7720  106762240
-powershell                        9896   93040640
-powershell                       15376  110014464
-powershell                       16412  102043648
-powershell                       19416  115277824
-powershell                       23520  102490112
-RadeonSoftware                   15704   36589568
-Registry                           232   30564352
-RobloxCrashHandler               11604   15130624
-RobloxPlayerBeta                 21340  177090560
-RtkAudUService64                  3096   18669568
-RtkAudUService64                  6024   19947520
-RtkAudUService64                 13652   19496960
-RuntimeBroker                     4264   31453184
-RuntimeBroker                     5528   22528000
-RuntimeBroker                    10956   61992960
-RuntimeBroker                    12496   13914112
-SafeExamBrowser.Service           5928   30310400
-SafeExamBrowser.Service           6036   30310400
-SDXHelper                         8836   33546240
-SearchHost                       10692  117760000
-SearchIndexer                    10076   29650944
-SECOCL64                         10124   18948096
-SECOMN64                          6044   17391616
-Secure System                      188   67960832
-SecurityHealthService            13556   24653824
-SecurityHealthSystray            13516   13389824
-services                          1504   19427328
-ShareX                           16040  115830784
-ShellHost                         4188   52924416
-sihost                            5848   52310016
-smss                               776    1601536
-spoolsv                           5688   19386368
-StartMenuExperienceHost          10680  131452928
-svchost                           1196   10723328
-svchost                           1352   25927680
-svchost                           1620    7069696
-svchost                           1684   43593728
-svchost                           1824   19931136
-svchost                           1872   11890688
-svchost                           2040   19685376
-svchost                           2184   14942208
-svchost                           2252   14204928
-svchost                           2268   15548416
-svchost                           2292   12079104
-svchost                           2320   17776640
-svchost                           2340   10706944
-svchost                           2420   14204928
-svchost                           2428   13156352
-svchost                           2464    8015872
-svchost                           2500   13623296
-svchost                           2520   24412160
-svchost                           2676   15990784
-svchost                           2724   22654976
-svchost                           2776   10440704
-svchost                           2992   14475264
-svchost                           3176   16900096
-svchost                           3292    9117696
-svchost                           3424   20647936
-svchost                           3464   20758528
-svchost                           3800    8863744
-svchost                           3820    9871360
-svchost                           3852   11816960
-svchost                           3924   15642624
-svchost                           3984   19755008
-svchost                           3992   10481664
-svchost                           4012    7729152
-svchost                           4140   12976128
-svchost                           4176   10469376
-svchost                           4396   19537920
-svchost                           4552   23056384
-svchost                           4812   21794816
-svchost                           4912   23310336
-svchost                           5112   11886592
-svchost                           5204   11485184
-svchost                           5248   13303808
-svchost                           5328   12845056
-svchost                           5408   14430208
-svchost                           5508   25591808
-svchost                           5568   20025344
-svchost                           5792   10723328
-svchost                           5872   64126976
-svchost                           5884   15523840
-svchost                           5892   43712512
-svchost                           6120    7512064
-svchost                           6132   27213824
-svchost                           6476   12607488
-svchost                           6636   16367616
-svchost                           6776   10752000
-svchost                           7352    7393280
-svchost                           7708   15233024
-svchost                           8072    9986048
-svchost                           8148   26243072
-svchost                           8400   40189952
-svchost                           8408   33402880
-svchost                           8444   11603968
-svchost                           8912   10035200
-svchost                           8952   34304000
-svchost                           9160   36311040
-svchost                           9180   10096640
-svchost                           9480   26681344
-svchost                           9828   16244736
-svchost                          10164   44646400
-svchost                          10224    9613312
-svchost                          10544   27668480
-svchost                          10908   15876096
-svchost                          10964   29315072
-svchost                          13428   12390400
-svchost                          13496   29917184
-svchost                          13780   15589376
-svchost                          13848   13266944
-svchost                          14064   16474112
-svchost                          14072   10715136
-svchost                          15544   26570752
-svchost                          15936   21864448
-svchost                          16300   20504576
-svchost                          16532   27799552
-svchost                          16668    9347072
-svchost                          16976   17866752
-svchost                          17024   21438464
-svchost                          17160   16658432
-svchost                          17604   29777920
-svchost                          19548   38469632
-svchost                          21388   11395072
-svchost                          22628   19652608
-svchost                          24368    9781248
-SysInfoCap                        4156  116297728
-System                               4     176128
-SystemOptimizer                   4712    9519104
-SystemSettings                    3232    3301376
-taskhostw                         4476   22781952
-taskhostw                        18296   16994304
-TextInputHost                    14300  126365696
-TouchpointAnalyticsClientService  4168   73375744
-unsecapp                          7424   10993664
-unsecapp                         14568   11550720
-UserOOBEBroker                   16016   11100160
-vmcompute                        10244   16355328
-vmmemWSL                         17920  375775232
-vmwp                             13896   24608768
-WhatsApp.Root                     4300  146616320
-WidgetBoard                      10876   36610048
-WidgetService                     4260   26460160
-wininit                           1356    8966144
-winlogon                          1428   17281024
-wlanext                           8316    7598080
-WmiPrvSE                          6920   19021824
-WmiPrvSE                          9676   18657280
-wsl                               4128    7565312
-wsl                               8892    7565312
-wsl                               9688   11919360
-wsl                              11472   12038144
-wslhost                           6928   11169792
-wslhost                          14284   11173888
-wslhost                          19276   11288576
-wslhost                          19692   12648448
-wslrelay                         20192   10752000
-wslservice                        3736   35373056
+USER         PID %CPU %MEM    VSZ   RSS TTY      STAT START   TIME COMMAND
+root           1  0.0  1.7  26464 17304 ?        Ss   17:42   0:00 /usr/lib/systemd/systemd --switched-root --system --deserialize=48
+root           2  0.0  0.0      0     0 ?        S    17:42   0:00 [kthreadd]
+root           3  0.0  0.0      0     0 ?        S    17:42   0:00 [pool_workqueue_release]
+root           4  0.0  0.0      0     0 ?        I<   17:42   0:00 [kworker/R-rcu_gp]
+root           5  0.0  0.0      0     0 ?        I<   17:42   0:00 [kworker/R-sync_wq]
+root           6  0.0  0.0      0     0 ?        I<   17:42   0:00 [kworker/R-kvfree_rcu_reclaim]
+root           7  0.0  0.0      0     0 ?        I<   17:42   0:00 [kworker/R-slub_flushwq]
+root           8  0.0  0.0      0     0 ?        I<   17:42   0:00 [kworker/R-netns]
+root           9  0.0  0.0      0     0 ?        I    17:42   0:00 [kworker/0:0-events]
+root          10  0.0  0.0      0     0 ?        I<   17:42   0:00 [kworker/0:0H-kblockd]
+root          13  0.0  0.0      0     0 ?        I<   17:42   0:00 [kworker/R-mm_percpu_wq]
+root          14  0.0  0.0      0     0 ?        S    17:42   0:00 [ksoftirqd/0]
+root          15  0.0  0.0      0     0 ?        I    17:42   0:00 [rcu_preempt]
+root          16  0.0  0.0      0     0 ?        S    17:42   0:00 [rcu_exp_par_gp_kthread_worker/0]
+root          17  0.0  0.0      0     0 ?        S    17:42   0:00 [rcu_exp_gp_kthread_worker]
+root          18  0.0  0.0      0     0 ?        S    17:42   0:00 [migration/0]
+root          19  0.0  0.0      0     0 ?        S    17:42   0:00 [idle_inject/0]
+root          20  0.0  0.0      0     0 ?        S    17:42   0:00 [cpuhp/0]
+root          21  0.0  0.0      0     0 ?        S    17:42   0:00 [kdevtmpfs]
+root          22  0.0  0.0      0     0 ?        I<   17:42   0:00 [kworker/R-inet_frag_wq]
+root          23  0.0  0.0      0     0 ?        I    17:42   0:00 [rcu_tasks_kthread]
+root          24  0.0  0.0      0     0 ?        I    17:42   0:00 [rcu_tasks_rude_kthread]
+root          25  0.0  0.0      0     0 ?        S    17:42   0:00 [kauditd]
+root          26  0.0  0.0      0     0 ?        S    17:42   0:00 [khungtaskd]
+root          27  0.0  0.0      0     0 ?        S    17:42   0:00 [oom_reaper]
+root          28  0.0  0.0      0     0 ?        I    17:42   0:00 [kworker/u4:1-events_unbound]
+root          29  0.0  0.0      0     0 ?        I<   17:42   0:00 [kworker/R-writeback]
+root          30  0.0  0.0      0     0 ?        S    17:42   0:00 [kcompactd0]
+root          31  0.0  0.0      0     0 ?        SN   17:42   0:00 [ksmd]
+root          32  0.0  0.0      0     0 ?        SN   17:42   0:00 [khugepaged]
+root          33  0.0  0.0      0     0 ?        I<   17:42   0:00 [kworker/R-kblockd]
+root          34  0.0  0.0      0     0 ?        I<   17:42   0:00 [kworker/R-blkcg_punt_bio]
+root          35  0.0  0.0      0     0 ?        I<   17:42   0:00 [kworker/R-kintegrityd]
+root          36  0.0  0.0      0     0 ?        S<   17:42   0:00 [pr/ttyAMA-1]
+root          38  0.0  0.0      0     0 ?        I<   17:42   0:00 [kworker/R-tpm_dev_wq]
+root          39  0.0  0.0      0     0 ?        I<   17:42   0:00 [kworker/R-ata_sff]
+root          40  0.0  0.0      0     0 ?        I<   17:42   0:00 [kworker/R-md_bitmap]
+root          41  0.0  0.0      0     0 ?        I<   17:42   0:00 [kworker/R-md_llbitmap_io]
+root          42  0.0  0.0      0     0 ?        I<   17:42   0:00 [kworker/R-md_llbitmap_unplug]
+root          43  0.0  0.0      0     0 ?        I<   17:42   0:00 [kworker/R-edac-poller]
+root          44  0.0  0.0      0     0 ?        I<   17:42   0:00 [kworker/R-devfreq_wq]
+root          45  0.0  0.0      0     0 ?        S    17:42   0:00 [watchdogd]
+root          46  0.0  0.0      0     0 ?        I<   17:42   0:00 [kworker/R-quota_events_unbound]
+root          47  0.0  0.0      0     0 ?        S    17:42   0:00 [kswapd0]
+root          48  0.0  0.0      0     0 ?        S    17:42   0:00 [ecryptfs-kthread]
+root          49  0.0  0.0      0     0 ?        I<   17:42   0:00 [kworker/R-kthrotld]
+root          50  0.0  0.0      0     0 ?        S    17:42   0:00 [irq/49-ACPI:Ged]
+root          51  0.0  0.0      0     0 ?        I<   17:42   0:00 [kworker/R-acpi_thermal_pm]
+root          52  0.0  0.0      0     0 ?        S    17:42   0:00 [scsi_eh_0]
+root          53  0.0  0.0      0     0 ?        I<   17:42   0:00 [kworker/R-scsi_tmf_0]
+root          55  0.0  0.0      0     0 ?        I<   17:42   0:00 [kworker/R-mld]
+root          56  0.0  0.0      0     0 ?        I<   17:42   0:00 [kworker/R-ipv6_addrconf]
+root          57  0.0  0.0      0     0 ?        I<   17:42   0:00 [kworker/R-kstrp]
+root          59  0.0  0.0      0     0 ?        I<   17:42   0:00 [kworker/u5:0]
+root          62  0.0  0.0      0     0 ?        I<   17:42   0:00 [kworker/R-charger_manager]
+root         140  0.0  0.0      0     0 ?        I<   17:43   0:00 [kworker/R-kmpathd]
+root         149  0.0  0.0      0     0 ?        I<   17:43   0:00 [kworker/R-kmpath_handlerd]
+root         262  0.0  0.0      0     0 ?        I<   17:43   0:00 [kworker/R-iscsi_conn_cleanup]
+root         267  0.0  0.0      0     0 ?        I<   17:43   0:00 [kworker/R-tls-strp]
+root         269  0.0  0.0      0     0 ?        I<   17:43   0:00 [kworker/R-cnic_wq]
+root         270  0.0  0.0      0     0 ?        S<   17:43   0:00 [bnx2i_thread/0]
+root         364  0.0  0.0      0     0 ?        I<   17:43   0:00 [kworker/R-cfg80211]
+root         447  0.0  0.0      0     0 ?        I<   17:43   0:00 [kworker/0:1H-kblockd]
+root         453  0.0  0.0      0     0 ?        S    17:43   0:00 [jbd2/sda1-8]
+root         454  0.0  0.0      0     0 ?        I<   17:43   0:00 [kworker/R-ext4-rsv-conversion]
+root         562  0.0  1.1  50704 10852 ?        S<s  17:43   0:00 /usr/lib/systemd/systemd-journald
+root         582  0.0  1.8 282108 18148 ?        SLsl 17:43   0:00 /usr/sbin/multipathd -d -s
+systemd+     610  0.0  1.6  23376 15500 ?        Ss   17:43   0:00 /usr/lib/systemd/systemd-resolved
+root         617  0.0  1.5  42312 15008 ?        Ss   17:43   0:00 /usr/lib/systemd/systemd-udevd
+root         620  0.0  0.0      0     0 ?        S    17:43   0:00 [psimon]
+root         688  0.0  0.0      0     0 ?        S    17:43   0:00 [jbd2/sda13-8]
+root         689  0.0  0.0      0     0 ?        I<   17:43   0:00 [kworker/R-ext4-rsv-conversion]
+root         720  0.0  0.0      0     0 ?        I    17:43   0:00 [kworker/u4:4-flush-8:0]
+systemd+     971  0.0  1.2  22120 12128 ?        Ss   17:43   0:00 /usr/lib/systemd/systemd-networkd
+root        1032  0.0  0.0      0     0 ?        I    17:43   0:00 [kworker/u4:5-events_unbound]
+root        1086  0.0  0.1   3628  1660 ?        Ss   17:43   0:00 /bin/sh /usr/lib/systemd/scripts/chronyd-starter.sh -n -F 1
+root        1088  0.0  0.2   8268  2700 ?        Ss   17:43   0:00 /usr/sbin/cron -f -P
+message+    1089  0.0  0.5   8760  4944 ?        Ss   17:43   0:00 @dbus-daemon --system --address=systemd: --nofork --nopidfile --systemd-activation --syslog-only
+root        1098  0.0  3.0  48788 29212 ?        Ss   17:43   0:00 /usr/bin/python3 /usr/bin/networkd-dispatcher --run-startup-triggers
+polkitd     1099  0.0  1.6 307720 15832 ?        Ssl  17:43   0:00 /usr/lib/polkit-1/polkitd --no-debug --log-level=notice
+root        1106  0.0  1.0  19768 10608 ?        Ss   17:43   0:00 /usr/lib/systemd/systemd-logind
+root        1109  0.0  2.8 548400 27744 ?        Ssl  17:43   0:00 /usr/libexec/udisks2/udisksd
+root        1135  0.0  0.7  10976  7436 ?        Ss   17:43   0:00 sshd: /usr/sbin/sshd -D [listener] 0 of 10-100 startups
+root        1141  0.0  0.2   9052  2288 ?        Ss+  17:43   0:00 /usr/sbin/agetty --noreset --noclear --issue-file=/etc/issue:/etc/issue.d:/run/issue.d:/usr/lib/issue.d --keep-baud 115200,57600,38400,9600 - vt220
+root        1155  0.0  0.2   8676  2184 tty1     Ss+  17:43   0:00 /usr/sbin/agetty --noreset --noclear --issue-file=/etc/issue:/etc/issue.d:/run/issue.d:/usr/lib/issue.d - linux
+_chrony     1168  0.0  1.2  25476 11960 ?        S    17:43   0:00 /usr/sbin/chronyd -n -F 1
+_chrony     1171  0.0  0.2  13124  2168 ?        S    17:43   0:00 /usr/sbin/chronyd -n -F 1
+root        1173  0.0  3.7 129380 35896 ?        Ssl  17:43   0:00 /usr/bin/python3 /usr/share/unattended-upgrades/unattended-upgrade-shutdown --wait-for-signal
+root        1211  0.0  2.3 398644 23084 ?        Ssl  17:43   0:00 /usr/sbin/ModemManager
+syslog      1226  0.0  1.3 221868 12632 ?        Ssl  17:43   0:00 /usr/sbin/rsyslogd -n -iNONE
+root        1310  0.0  1.3  22048 13140 ?        Ss   17:43   0:00 sshd-session: ubuntu [priv]
+ubuntu      1315  0.0  1.4  22604 13580 ?        Ss   17:43   0:00 /usr/lib/systemd/systemd --user
+ubuntu      1317  0.0  0.4  25732  3904 ?        S    17:43   0:00 (sd-pam)
+ubuntu      1428  0.0  0.9  22048  9104 ?        S    17:43   0:00 sshd-session: ubuntu@notty
+root        1722  0.0  0.0      0     0 ?        S    17:43   0:00 [psimon]
+root        8361  0.0  1.1  20944 11280 ?        Ss   17:43   0:00 sshd-session: ubuntu [priv]
+ubuntu      8408  0.0  0.7  20944  7488 ?        S    17:43   0:00 sshd-session: ubuntu@pts/0
+ubuntu      8409  0.0  0.6   9820  6064 pts/0    Ss   17:43   0:00 -bash
+root        8639  0.0  0.0      0     0 ?        I    17:50   0:00 [kworker/0:1-cgroup_free]
+ubuntu      8718  0.0  0.3   9084  3368 pts/0    S+   17:57   0:00 /bin/bash ./system_info.sh
+ubuntu      8727  0.0  0.3   9912  3740 pts/0    R+   17:57   0:00 ps aux
 
-
-My name is Kiran N
-My roll number is 24bcs10446
-My comment is: Hello world
+Saved by: Kiran N (Roll No: 10446) on Sat Oct 17 17:57:00 IST 2026
+Comment : nothing to say
