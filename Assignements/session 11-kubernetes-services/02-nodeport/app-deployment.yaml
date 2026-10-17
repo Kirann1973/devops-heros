@@ -1,11 +1,11 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: web-nodeport
+  name: web-app-nodeport
   labels:
     app: web-nodeport
 spec:
-  replicas: 3
+  replicas: 2
   selector:
     matchLabels:
       app: web-nodeport
@@ -15,7 +15,15 @@ spec:
         app: web-nodeport
     spec:
       containers:
-        - name: nginx
+        - name: web-server
           image: nginx:1.25-alpine
+          command: ["sh", "-c", "echo \"Kiran N - Roll No 10446 | NodePort | pod: $(hostname)\" > /usr/share/nginx/html/index.html && exec nginx -g 'daemon off;'"]
           ports:
             - containerPort: 80
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "100m"
+              memory: "128Mi"

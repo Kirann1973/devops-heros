@@ -1,21 +1,29 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: web-loadbalancer
+  name: web-app-loadbalancer
   labels:
-    app: web-lb
+    app: web-loadbalancer
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: web-lb
+      app: web-loadbalancer
   template:
     metadata:
       labels:
-        app: web-lb
+        app: web-loadbalancer
     spec:
       containers:
-        - name: nginx
+        - name: web-server
           image: nginx:1.25-alpine
+          command: ["sh", "-c", "echo \"Kiran N - Roll No 10446 | LoadBalancer | pod: $(hostname)\" > /usr/share/nginx/html/index.html && exec nginx -g 'daemon off;'"]
           ports:
             - containerPort: 80
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "100m"
+              memory: "128Mi"

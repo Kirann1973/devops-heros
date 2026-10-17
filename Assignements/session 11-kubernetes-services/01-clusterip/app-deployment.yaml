@@ -1,21 +1,29 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: web-clusterip
+  name: web-app-clusterip
   labels:
-    app: web
+    app: web-clusterip
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: web
+      app: web-clusterip
   template:
     metadata:
       labels:
-        app: web
+        app: web-clusterip
     spec:
       containers:
-        - name: nginx
+        - name: nginx-web
           image: nginx:1.25-alpine
+          command: ["sh", "-c", "echo \"Kiran N - Roll No 10446 | ClusterIP | pod: $(hostname)\" > /usr/share/nginx/html/index.html && exec nginx -g 'daemon off;'"]
           ports:
             - containerPort: 80
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "100m"
+              memory: "128Mi"
