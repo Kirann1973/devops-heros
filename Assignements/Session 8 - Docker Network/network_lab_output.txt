@@ -1,0 +1,168 @@
+########## TASK 1: Container networking ##########
+$ docker network create frontend-net
+eb45b4ef48abd91af429a7bdb54f5a558ffc6940a91d5026baeb686cf2d547be
+
+$ docker network create backend-net
+fad9f5dd0b8d9ab1733433d8567375b8e82dec065ce8bcdb94f8c24fa994b7b0
+
+$ docker network create db-net
+d8a47d1fc30455dfe1ff90c0b81b43a8aa3a3aeac4a97a73200c05143485e544
+
+$ docker run -d --name frontend --network frontend-net nginx:alpine
+c7720ffb873c71b0baee289969c754e3ca96adee59d4bdb8e8d0643fec72db84
+
+$ docker run -d --name backend --network backend-net alpine sleep infinity
+822749e1e94f8201328faf918974d91bec1f06fc4cad2c3f468fee5cb71f0ad0
+
+$ docker run -d --name database --network db-net -e MYSQL_ROOT_PASSWORD=root123 mysql:8.4
+84ba6e5874ceae13e63eff1fcbe5429a0cc4d29b81ff0acb068823dee943b1d3
+
+########## Add the backend container to 2 more networks ##########
+$ docker network connect frontend-net backend
+
+$ docker network connect db-net backend
+
+$ docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Networks}}"
+NAMES        IMAGE          NETWORKS
+database     mysql:8.4      db-net
+backend      alpine         backend-net,db-net,frontend-net
+frontend     nginx:alpine   frontend-net
+nginx-app    nginx-app      bridge
+react-app    react-app      bridge
+apache-app   apache-app     bridge
+java-app     java-app       bridge
+python-app   python-app     bridge
+nodejs-app   nodejs-app     bridge
+
+$ docker network ls --filter name=-net
+NETWORK ID     NAME           DRIVER    SCOPE
+fad9f5dd0b8d   backend-net    bridge    local
+d8a47d1fc304   db-net         bridge    local
+eb45b4ef48ab   frontend-net   bridge    local
+
+########## Connectivity checks ##########
+$ docker exec frontend ping -c 2 backend
+PING backend (172.18.0.3): 56 data bytes
+64 bytes from 172.18.0.3: seq=0 ttl=64 time=0.066 ms
+64 bytes from 172.18.0.3: seq=1 ttl=64 time=0.063 ms
+
+--- backend ping statistics ---
+2 packets transmitted, 2 packets received, 0% packet loss
+round-trip min/avg/max = 0.063/0.064/0.066 ms
+
+$ docker exec backend ping -c 2 frontend
+PING frontend (172.18.0.2): 56 data bytes
+64 bytes from 172.18.0.2: seq=0 ttl=64 time=0.041 ms
+64 bytes from 172.18.0.2: seq=1 ttl=64 time=0.045 ms
+
+--- frontend ping statistics ---
+2 packets transmitted, 2 packets received, 0% packet loss
+round-trip min/avg/max = 0.041/0.043/0.045 ms
+
+$ docker exec backend ping -c 2 database
+PING database (172.20.0.2): 56 data bytes
+64 bytes from 172.20.0.2: seq=0 ttl=64 time=0.072 ms
+64 bytes from 172.20.0.2: seq=1 ttl=64 time=0.152 ms
+
+--- database ping statistics ---
+2 packets transmitted, 2 packets received, 0% packet loss
+round-trip min/avg/max = 0.072/0.112/0.152 ms
+
+$ docker exec frontend ping -c 2 database
+ping: bad address 'database'
+
+$ docker network inspect db-net --format '{{range .Containers}}{{.Name}} {{.IPv4Address}}{{println}}{{end}}'
+backend 172.20.0.3/16
+database 172.20.0.2/16
+
+########## TASK 1 (extra): 3-tier demo app from class with Docker Compose ##########
+$ docker compose -f demo/docker-compose.yml up -d --build
+(image pull and build progress lines removed)
+ frontend Pulled 
+ database Pulled 
+ backend  Built
+ Network demo_backend_net  Creating
+ Network demo_backend_net  Created
+ Network demo_frontend_net  Creating
+ Network demo_frontend_net  Created
+ Volume demo_db_data  Creating
+ Volume demo_db_data  Created
+ Container demo-database-1  Creating
+ Container demo-database-1  Created
+ Container demo-backend-1  Creating
+ Container demo-backend-1  Created
+ Container demo-frontend-1  Creating
+ Container demo-frontend-1  Created
+ Container demo-database-1  Starting
+ Container demo-database-1  Started
+ Container demo-backend-1  Starting
+ Container demo-backend-1  Started
+ Container demo-frontend-1  Starting
+ Container demo-frontend-1  Started
+
+$ sleep 30
+
+$ docker compose -f demo/docker-compose.yml ps
+NAME              IMAGE          COMMAND                  SERVICE    CREATED          STATUS          PORTS
+demo-backend-1    demo-backend   "python app.py"          backend    30 seconds ago   Up 30 seconds   5000/tcp
+demo-database-1   mysql:8.0      "docker-entrypoint.s…"   database   30 seconds ago   Up 30 seconds   3306/tcp, 33060/tcp
+demo-frontend-1   nginx:latest   "/docker-entrypoint.…"   frontend   30 seconds ago   Up 30 seconds   0.0.0.0:8080->80/tcp, [::]:8080->80/tcp
+
+$ curl -s http://localhost:8080 | grep Roll
+    <p>Kiran N | Roll No: 10446</p>
+
+$ curl -s http://localhost:8080/api
+{"backend":"Backend is working!","database":"Hello from MySQL!","student":"Kiran N - 10446"}
+
+$ docker network ls --filter name=demo
+NETWORK ID     NAME                DRIVER    SCOPE
+437475dd14bc   demo_backend_net    bridge    local
+6ec5283d22a5   demo_frontend_net   bridge    local
+
+$ docker exec demo-frontend-1 getent hosts backend
+172.22.0.2      backend
+
+$ docker exec demo-frontend-1 getent hosts database || echo 'frontend cannot resolve database (not on backend_net)'
+frontend cannot resolve database (not on backend_net)
+
+########## TASK 2: Host network (Apache) ##########
+$ docker run -d --name apache-host --network host httpd:alpine
+9144120ca0b6cdd18d0783798094a1f07ce7762de56a246c7aedd61cebffc38f
+
+$ sleep 3
+
+$ curl -s http://localhost:80
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<title>It works! Apache httpd</title>
+</head>
+<body>
+<p>It works!</p>
+</body>
+</html>
+
+$ docker inspect apache-host --format "Network mode: {{.HostConfig.NetworkMode}}"
+Network mode: host
+
+########## TASK 3: Bind mount (Nginx) ##########
+$ cat html/index.html
+Hello students
+
+$ docker run -d --name nginx-bind -p 8090:80 -v "/home/ubuntu/devops-heros/Assignements/Session 8 - Docker Network/html:/usr/share/nginx/html:ro" nginx:alpine
+a9d4589cd0bc84e1adb4dc7a78b6fe78956a5212835b0218224bd45d78ea4ade
+
+$ sleep 3
+
+$ curl -s http://localhost:8090
+Hello students
+
+$ echo "Hello students - Modified by Kiran N (10446)!" > html/index.html
+
+$ curl -s http://localhost:8090
+Hello students - Modified by Kiran N (10446)!
+
+$ docker ps --filter name=nginx-bind --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+NAMES        STATUS         PORTS
+nginx-bind   Up 3 seconds   0.0.0.0:8090->80/tcp, [::]:8090->80/tcp
+
