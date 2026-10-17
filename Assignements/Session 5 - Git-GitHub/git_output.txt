@@ -1,0 +1,142 @@
+########## SETUP ##########
+$ git init -b main
+Initialized empty Git repository in /home/ubuntu/session5/git-lab/.git/
+
+$ git config user.name "Kiran N"
+
+$ git config user.email "kiran.10446@example.com"
+
+########## TASK 1: git commit -m vs git commit -a -m ##########
+$ echo "line 1" > notes.txt
+
+$ git add notes.txt
+
+$ git commit -m "Add notes.txt"
+[main (root-commit) 3c4439e] Add notes.txt
+ 1 file changed, 1 insertion(+)
+ create mode 100644 notes.txt
+
+$ echo "line 2" >> notes.txt
+
+$ echo "new file" > extra.txt
+
+$ git status --short
+ M notes.txt
+?? extra.txt
+
+########## 1a. git commit -m WITHOUT git add (nothing staged) ##########
+$ git commit -m "Try commit without add"
+On branch main
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   notes.txt
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	extra.txt
+
+no changes added to commit (use "git add" and/or "git commit -a")
+
+########## 1b. git commit -a -m (stages tracked notes.txt only) ##########
+$ git commit -a -m "Update notes.txt using -a"
+[main 4be685c] Update notes.txt using -a
+ 1 file changed, 1 insertion(+)
+
+$ git status --short
+?? extra.txt
+
+$ git show --stat --oneline HEAD
+4be685c Update notes.txt using -a
+ notes.txt | 1 +
+ 1 file changed, 1 insertion(+)
+
+########## 1c. untracked extra.txt still needs git add ##########
+$ git add extra.txt
+
+$ git commit -m "Add extra.txt"
+[main 7d06450] Add extra.txt
+ 1 file changed, 1 insertion(+)
+ create mode 100644 extra.txt
+
+########## TASK 2: git cherry-pick ##########
+$ echo "app v1" > app.txt
+
+$ git add app.txt
+
+$ git commit -m "main: add app.txt"
+[main 2a1ac12] main: add app.txt
+ 1 file changed, 1 insertion(+)
+ create mode 100644 app.txt
+
+$ git log --oneline
+2a1ac12 main: add app.txt
+7d06450 Add extra.txt
+4be685c Update notes.txt using -a
+3c4439e Add notes.txt
+
+$ git checkout -b feature
+Switched to a new branch 'feature'
+
+$ echo "login page" > login.txt
+
+$ git add login.txt
+
+$ git commit -m "feature: add login page"
+[feature acd82c6] feature: add login page
+ 1 file changed, 1 insertion(+)
+ create mode 100644 login.txt
+
+$ echo "bug fix" > fix.txt
+
+$ git add fix.txt
+
+$ git commit -m "feature: important bug fix"
+[feature 0a175a4] feature: important bug fix
+ 1 file changed, 1 insertion(+)
+ create mode 100644 fix.txt
+
+$ echo "dark mode" > theme.txt
+
+$ git add theme.txt
+
+$ git commit -m "feature: add dark mode"
+[feature 6351d4c] feature: add dark mode
+ 1 file changed, 1 insertion(+)
+ create mode 100644 theme.txt
+
+$ git log --oneline
+6351d4c feature: add dark mode
+0a175a4 feature: important bug fix
+acd82c6 feature: add login page
+2a1ac12 main: add app.txt
+7d06450 Add extra.txt
+4be685c Update notes.txt using -a
+3c4439e Add notes.txt
+
+$ git checkout main
+Switched to branch 'main'
+
+$ git cherry-pick 0a175a4
+[main e1839ab] feature: important bug fix
+ Date: Sat Oct 17 18:33:13 2026 +0530
+ 1 file changed, 1 insertion(+)
+ create mode 100644 fix.txt
+
+$ git log --oneline --graph --all
+* 6351d4c feature: add dark mode
+* 0a175a4 feature: important bug fix
+* acd82c6 feature: add login page
+| * e1839ab feature: important bug fix
+|/
+* 2a1ac12 main: add app.txt
+* 7d06450 Add extra.txt
+* 4be685c Update notes.txt using -a
+* 3c4439e Add notes.txt
+
+$ ls
+app.txt
+extra.txt
+fix.txt
+notes.txt
+
