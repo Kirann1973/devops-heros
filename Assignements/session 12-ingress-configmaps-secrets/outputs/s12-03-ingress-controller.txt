@@ -1,0 +1,38 @@
+########## Task 3 and 4: install the NGINX Ingress Controller ##########
+$ kubectl get ingressclass
+No resources found
+
+$ minikube addons enable ingress
+* ingress is an addon maintained by Kubernetes. For any concerns contact minikube on GitHub.
+You can view the list of minikube maintainers at: https://github.com/kubernetes/minikube/blob/master/OWNERS
+  - Using image registry.k8s.io/ingress-nginx/kube-webhook-certgen:v1.6.9
+  - Using image registry.k8s.io/ingress-nginx/kube-webhook-certgen:v1.6.9
+  - Using image registry.k8s.io/ingress-nginx/controller:v1.15.1
+* Verifying ingress addon...
+* The 'ingress' addon is enabled
+
+$ kubectl wait -n ingress-nginx --for=condition=Ready pod -l app.kubernetes.io/component=controller --timeout=240s
+pod/ingress-nginx-controller-d7cd8c989-kcqrk condition met
+
+$ kubectl get pods -n ingress-nginx
+NAME                                       READY   STATUS      RESTARTS      AGE
+ingress-nginx-admission-create-kl87j       0/1     Completed   0             44s
+ingress-nginx-admission-patch-mgt7p        0/1     Completed   2 (37s ago)   44s
+ingress-nginx-controller-d7cd8c989-kcqrk   1/1     Running     0             44s
+
+$ kubectl get svc -n ingress-nginx
+NAME                                 TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)                      AGE
+ingress-nginx-controller             NodePort    10.100.95.220   <none>        80:30186/TCP,443:30383/TCP   44s
+ingress-nginx-controller-admission   ClusterIP   10.101.102.65   <none>        443/TCP                      44s
+
+$ kubectl get ingressclass
+NAME              CONTROLLER             PARAMETERS   AGE
+nginx (default)   k8s.io/ingress-nginx   <none>       44s
+
+$ kubectl get deployment ingress-nginx-controller -n ingress-nginx -o jsonpath="{.spec.template.spec.containers[0].image}"; echo
+registry.k8s.io/ingress-nginx/controller:v1.15.1@sha256:594ceea76b01c592858f803f9ff4d2cb40542cae2060410b2c95f75907d659e1
+
+$ (no Ingress rules yet: the controller answers every request with 404)
+$ curl -s -o /dev/null -w 'HTTP %{http_code}\n' http://192.168.49.2/
+HTTP 404
+

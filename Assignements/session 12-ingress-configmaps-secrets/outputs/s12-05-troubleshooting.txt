@@ -1,0 +1,61 @@
+########## Task 5: Troubleshooting - login fails because of a hidden newline in the Secret ##########
+$ (BEFORE: apply the broken Secret and the app that logs in with it)
+$ kubectl apply -f troubleshooting/broken-db-secret.yaml -f troubleshooting/db-login-pod.yaml
+secret/db-login-secret created
+pod/db-login-check created
+
+$ kubectl wait --for=jsonpath='{.status.phase}'=Failed pod/db-login-check --timeout=120s
+pod/db-login-check condition met
+
+$ kubectl get pod db-login-check
+NAME             READY   STATUS   RESTARTS   AGE
+db-login-check   0/1     Error    0          3s
+
+$ kubectl logs db-login-check
+Connecting as yatri_admin (password length: 15)
+FATAL: password authentication failed for user "yatri_admin"
+
+$ (investigate: the user is right, so look at the exact bytes of the password)
+$ kubectl get secret db-login-secret -o jsonpath="{.data.POSTGRES_PASSWORD}"; echo
+c2VjcmV0cGFzc3dvcmQK
+
+$ kubectl get secret db-login-secret -o jsonpath="{.data.POSTGRES_PASSWORD}" | base64 -d | od -c
+0000000   s   e   c   r   e   t   p   a   s   s   w   o   r   d  \n
+0000017
+
+$ kubectl get secret db-login-secret -o jsonpath="{.data.POSTGRES_PASSWORD}" | base64 -d | wc -c
+15
+
+$ (root cause: the value was made with echo "secretpassword" | base64, so it ends with \n (15 bytes, not 14))
+$ (fix: recreate the Secret with the exact value (--from-literal adds no newline))
+$ kubectl create secret generic db-login-secret --from-literal=POSTGRES_USER=yatri_admin --from-literal=POSTGRES_PASSWORD=secretpassword --dry-run=client -o yaml | kubectl apply -f -
+secret/db-login-secret configured
+
+$ kubectl get secret db-login-secret -o jsonpath="{.data.POSTGRES_PASSWORD}"; echo
+c2VjcmV0cGFzc3dvcmQ=
+
+$ kubectl get secret db-login-secret -o jsonpath="{.data.POSTGRES_PASSWORD}" | base64 -d | wc -c
+14
+
+$ (AFTER: env vars are read only when a container starts, so recreate the pod)
+$ kubectl delete pod db-login-check --grace-period=1
+pod "db-login-check" deleted from default namespace
+
+$ kubectl apply -f troubleshooting/db-login-pod.yaml
+pod/db-login-check created
+
+$ kubectl wait --for=jsonpath='{.status.phase}'=Succeeded pod/db-login-check --timeout=120s
+pod/db-login-check condition met
+
+$ kubectl get pod db-login-check
+NAME             READY   STATUS      RESTARTS   AGE
+db-login-check   0/1     Completed   0          3s
+
+$ kubectl logs db-login-check
+Connecting as yatri_admin (password length: 14)
+LOGIN OK: connected to yatri_production_db
+
+$ kubectl delete -f troubleshooting/db-login-pod.yaml -f troubleshooting/broken-db-secret.yaml --grace-period=1
+pod "db-login-check" deleted from default namespace
+secret "db-login-secret" deleted from default namespace
+

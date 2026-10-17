@@ -1,0 +1,93 @@
+########## Task 1: ConfigMap - create, inject into a Pod, verify inside the container ##########
+$ kubectl apply -f 01-configmap/app-config.yaml
+configmap/yatri-app-config created
+
+$ kubectl get configmap yatri-app-config
+NAME               DATA   AGE
+yatri-app-config   5      0s
+
+$ kubectl describe configmap yatri-app-config | sed -n "/^Data/,/^Events/p"
+Data
+====
+DEFAULT_CURRENCY:
+----
+INR
+
+ENVIRONMENT:
+----
+production
+
+LOG_LEVEL:
+----
+INFO
+
+MAX_BOOKING_DAYS:
+----
+30
+
+PORT:
+----
+5000
+
+
+BinaryData
+====
+
+Events:  <none>
+
+$ kubectl get configmap yatri-app-config -o jsonpath="{.data.DEFAULT_CURRENCY}"; echo
+INR
+
+$ kubectl apply -f 01-configmap/configmap-pod.yaml
+pod/configmap-demo created
+
+$ kubectl wait --for=condition=Ready pod/configmap-demo --timeout=180s
+pod/configmap-demo condition met
+
+$ kubectl logs configmap-demo
+configmap-demo started by Kiran N (10446): ENVIRONMENT=production LOG_LEVEL=INFO
+
+$ (as environment variables)
+$ kubectl exec configmap-demo -- env | grep -E "ENVIRONMENT|LOG_LEVEL|PORT|CURRENCY|MAX_BOOKING" | sort
+APP_CURRENCY=INR
+DEFAULT_CURRENCY=INR
+ENVIRONMENT=production
+KUBERNETES_PORT=tcp://10.96.0.1:443
+KUBERNETES_PORT_443_TCP=tcp://10.96.0.1:443
+KUBERNETES_PORT_443_TCP_ADDR=10.96.0.1
+KUBERNETES_PORT_443_TCP_PORT=443
+KUBERNETES_PORT_443_TCP_PROTO=tcp
+KUBERNETES_SERVICE_PORT=443
+KUBERNETES_SERVICE_PORT_HTTPS=443
+LOG_LEVEL=INFO
+MAX_BOOKING_DAYS=30
+PORT=5000
+
+$ (as files in the mounted volume)
+$ kubectl exec configmap-demo -- ls /etc/config
+DEFAULT_CURRENCY
+ENVIRONMENT
+LOG_LEVEL
+MAX_BOOKING_DAYS
+PORT
+
+$ kubectl exec configmap-demo -- cat /etc/config/LOG_LEVEL; echo
+INFO
+
+$ (change LOG_LEVEL to DEBUG: the mounted file updates by itself, the env var keeps the old value)
+$ kubectl patch configmap yatri-app-config -p '{"data":{"LOG_LEVEL":"DEBUG"}}'
+configmap/yatri-app-config patched
+
+$ (file changed after about 75 seconds)
+$ kubectl exec configmap-demo -- cat /etc/config/LOG_LEVEL; echo
+DEBUG
+
+$ kubectl exec configmap-demo -- printenv LOG_LEVEL
+INFO
+
+$ kubectl delete pod configmap-demo --grace-period=1
+pod "configmap-demo" deleted from default namespace
+
+$ kubectl delete -f 01-configmap/app-config.yaml
+configmap "yatri-app-config" deleted from default namespace
+

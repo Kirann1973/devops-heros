@@ -1,0 +1,90 @@
+########## Task 3: Ingress demo - frontend on /, backend on /api (ConfigMap + Secret inside) ##########
+$ kubectl apply -f 04-full-demo/configmap.yaml -f 04-full-demo/secret.yaml -f 04-full-demo/frontend.yaml -f 04-full-demo/backend.yaml
+configmap/yatri-app-config created
+secret/yatri-db-secret created
+deployment.apps/yatri-frontend created
+service/yatri-frontend-service created
+deployment.apps/yatri-backend created
+service/yatri-backend-service created
+
+$ kubectl rollout status deployment/yatri-frontend --timeout=180s
+Waiting for deployment "yatri-frontend" rollout to finish: 0 of 2 updated replicas are available...
+Waiting for deployment "yatri-frontend" rollout to finish: 1 of 2 updated replicas are available...
+deployment "yatri-frontend" successfully rolled out
+
+$ kubectl rollout status deployment/yatri-backend --timeout=180s
+deployment "yatri-backend" successfully rolled out
+
+$ kubectl apply -f 04-full-demo/ingress.yaml
+ingress.networking.k8s.io/yatri-ingress created
+
+$ kubectl get pods -l "app in (yatri-frontend,yatri-backend)" -o wide
+NAME                              READY   STATUS    RESTARTS   AGE   IP             NODE       NOMINATED NODE   READINESS GATES
+yatri-backend-64ccb7d5ff-wmwd4    1/1     Running   0          60s   10.244.0.181   minikube   <none>           <none>
+yatri-backend-64ccb7d5ff-z7mm9    1/1     Running   0          59s   10.244.0.182   minikube   <none>           <none>
+yatri-frontend-5b5b5b7b9f-6tlgx   1/1     Running   0          60s   10.244.0.180   minikube   <none>           <none>
+yatri-frontend-5b5b5b7b9f-hqzps   1/1     Running   0          60s   10.244.0.179   minikube   <none>           <none>
+
+$ kubectl get svc yatri-frontend-service yatri-backend-service
+NAME                     TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)   AGE
+yatri-frontend-service   ClusterIP   10.98.131.69    <none>        80/TCP    60s
+yatri-backend-service    ClusterIP   10.108.26.175   <none>        80/TCP    60s
+
+$ kubectl get ingress yatri-ingress
+NAME            CLASS   HOSTS         ADDRESS        PORTS   AGE
+yatri-ingress   nginx   yatri.local   192.168.49.2   80      59s
+
+$ kubectl describe ingress yatri-ingress | sed -n "/^Rules/,/^Annotations/p"
+Rules:
+  Host         Path  Backends
+  ----         ----  --------
+  yatri.local  
+               /api(/|$)(.*)   yatri-backend-service:80 (10.244.0.181:5000,10.244.0.182:5000)
+               /               yatri-frontend-service:80 (10.244.0.180:80,10.244.0.179:80)
+Annotations:   nginx.ingress.kubernetes.io/rewrite-target: /$2
+
+$ (yatri.local -> 192.168.49.2 (minikube ip), where the Ingress Controller listens on port 80)
+$ curl -s --resolve yatri.local:80:192.168.49.2 http://yatri.local/
+Yatri Frontend | Kiran N - Roll No 10446 | ENVIRONMENT=production | pod: yatri-frontend-5b5b5b7b9f-6tlgx
+
+$ curl -s --resolve yatri.local:80:192.168.49.2 http://yatri.local/api/
+Yatri Backend API
+Student         : Kiran N - Roll No 10446
+=================
+ENVIRONMENT     : production
+LOG_LEVEL       : INFO
+DEFAULT_CURRENCY: INR
+POSTGRES_USER   : yatri_admin
+POSTGRES_DB     : yatri_production_db
+
+$ (6 requests to / are spread over the 2 frontend pods)
+      3 Yatri Frontend | Kiran N - Roll No 10446 | ENVIRONMENT=production | pod: yatri-frontend-5b5b5b7b9f-6tlgx
+      3 Yatri Frontend | Kiran N - Roll No 10446 | ENVIRONMENT=production | pod: yatri-frontend-5b5b5b7b9f-hqzps
+
+$ (routing is by host name: the bare IP has no rule, so the controller returns 404)
+$ curl -s -o /dev/null -w 'HTTP %{http_code}\n' http://192.168.49.2/
+HTTP 404
+
+$ kubectl exec deploy/yatri-backend -- env | grep -E "ENVIRONMENT|LOG_LEVEL|CURRENCY|POSTGRES" | sort
+DEFAULT_CURRENCY=INR
+ENVIRONMENT=production
+LOG_LEVEL=INFO
+POSTGRES_DB=yatri_production_db
+POSTGRES_PASSWORD=secretpassword
+POSTGRES_USER=yatri_admin
+
+$ bash 04-full-demo/cleanup.sh
+[INFO] Deleting Ingress...
+ingress.networking.k8s.io "yatri-ingress" deleted from default namespace
+[INFO] Deleting Backend Deployment and Service...
+deployment.apps "yatri-backend" deleted from default namespace
+service "yatri-backend-service" deleted from default namespace
+[INFO] Deleting Frontend Deployment and Service...
+deployment.apps "yatri-frontend" deleted from default namespace
+service "yatri-frontend-service" deleted from default namespace
+[INFO] Deleting Secret...
+secret "yatri-db-secret" deleted from default namespace
+[INFO] Deleting ConfigMap...
+configmap "yatri-app-config" deleted from default namespace
+[INFO] All demo resources removed.
+
