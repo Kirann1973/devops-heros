@@ -140,8 +140,13 @@ run "helm show values podinfo/podinfo | grep -E '^replicaCount|^ui:|^  message|^
 run "mkdir -p $WORK && cd $WORK && helm pull podinfo/podinfo --untar && ls podinfo; cd - >/dev/null"
 note 'install a chart from a repo, with my own values'
 run "helm install my-podinfo podinfo/podinfo --set ui.message='Hello from Kiran N - Roll No 10446' --set replicaCount=2 --wait --timeout 180s | grep -E '^NAME|^STATUS|^REVISION'"
+run 'kubectl rollout status deploy/my-podinfo --timeout=120s'
 run 'kubectl get pods | grep -E "NAME|my-podinfo"'
-run "kubectl run curl-podinfo --rm -i --restart=Never --image=curlimages/curl:8.11.1 -- curl -s http://my-podinfo:9898 | grep -E 'hostname|message|version'"
+note 'open the app through a port-forward and read its JSON answer'
+kubectl port-forward svc/my-podinfo 9898:9898 >/dev/null 2>&1 &
+PF=$!; sleep 4
+run "curl -s http://localhost:9898 | grep -E 'hostname|message|version'"
+kill $PF 2>/dev/null
 run 'helm uninstall my-podinfo --wait'
 }
 
@@ -241,11 +246,13 @@ run "kubectl get deploy notes-dev-deploy -o jsonpath='replicas={.spec.replicas} 
 run "curl -s -o /dev/null -w 'app still answers: HTTP %{http_code}\n' http://\$(minikube ip):30090"
 note 'Step 14: rollback to revision 2'
 run 'helm rollback notes-dev 2 --wait --timeout 180s'
+sleep 10   # let the broken pod finish terminating
 run 'kubectl get pods -l app=notes-dev'
 run "kubectl get deploy notes-dev-deploy -o jsonpath='replicas={.spec.replicas} image={.spec.template.spec.containers[0].image}{\"\n\"}'"
 run 'helm history notes-dev'
 note 'Step 15: clean up'
 run 'helm uninstall notes-dev --wait'
+kubectl wait --for=delete pod -l app=notes-dev --timeout=90s >/dev/null 2>&1
 run 'kubectl get pods -l app=notes-dev'
 run 'kubectl get svc,configmap | grep notes-dev || echo "no notes-dev objects left"'
 run 'helm list --all'
