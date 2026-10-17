@@ -1,0 +1,22 @@
+# FIX for scenario 4: the client used "postgres-db-wrong-name", which has no
+# Service, so DNS returns NXDOMAIN. Use the real Service name and test the port.
+# Kiran N | Roll No: 10446
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fail-4-dns-failure-pod
+  labels:
+    tier: triage-gauntlet
+    scenario: dns-failure
+spec:
+  containers:
+    - name: client
+      image: busybox:1.36
+      command: ["sh", "-c"]
+      args:
+        - |
+          DB=postgres-db.production.svc.cluster.local
+          echo "Attempting connection to internal database $DB:5432 (Kiran N - 10446)"
+          nslookup $DB | tail -n 2
+          if nc -z -w 3 $DB 5432; then echo "CONNECTED: port 5432 is open"; else echo "FAILED: cannot reach $DB:5432"; fi
+          sleep 3600

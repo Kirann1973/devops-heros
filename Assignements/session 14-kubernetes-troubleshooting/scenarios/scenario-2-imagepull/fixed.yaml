@@ -1,0 +1,14 @@
+# FIX for scenario 2: the image "yatri-api-service:v999-invalid-tag-does-not-exist"
+# does not exist in any registry. Use an image that exists.
+# Kiran N | Roll No: 10446
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fail-2-imagepull-pod
+  labels:
+    tier: triage-gauntlet
+    scenario: imagepull
+spec:
+  containers:
+    - name: web-app
+      image: nginx:1.27

@@ -1,0 +1,19 @@
+# BROKEN on purpose: mounts a ConfigMap that does not exist yet.
+# The Pod stays in ContainerCreating (FailedMount) until the ConfigMap is created.
+# Kiran N | Roll No: 10446
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mount-demo
+spec:
+  containers:
+    - name: app
+      image: busybox:1.36
+      command: ["sh", "-c", "echo \"mount-demo (Kiran N - 10446) read: $(cat /etc/app/GREETING)\"; sleep 3600"]
+      volumeMounts:
+        - name: settings
+          mountPath: /etc/app
+  volumes:
+    - name: settings
+      configMap:
+        name: app-settings          # <- not created yet

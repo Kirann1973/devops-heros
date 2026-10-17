@@ -1,0 +1,51 @@
+# The database the scenario-4 client wants to reach:
+# Service "postgres-db" in namespace "production" -> postgres-db.production.svc.cluster.local:5432
+# Kiran N | Roll No: 10446
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: production
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres-db
+  namespace: production
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres-db
+  template:
+    metadata:
+      labels:
+        app: postgres-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          env:
+            - name: POSTGRES_USER
+              value: yatri_admin
+            - name: POSTGRES_PASSWORD
+              value: demo-only-password     # lab only; use a Secret in real use
+            - name: POSTGRES_DB
+              value: yatri
+          ports:
+            - containerPort: 5432
+          readinessProbe:
+            tcpSocket:
+              port: 5432
+            periodSeconds: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-db
+  namespace: production
+spec:
+  selector:
+    app: postgres-db
+  ports:
+    - port: 5432
+      targetPort: 5432

@@ -1,0 +1,18 @@
+# BROKEN on purpose: reads DB_PASSWORD from a Secret that does not exist yet.
+# The image is pulled, but the container cannot be created: CreateContainerConfigError.
+# Kiran N | Roll No: 10446
+apiVersion: v1
+kind: Pod
+metadata:
+  name: config-demo
+spec:
+  containers:
+    - name: app
+      image: busybox:1.36
+      command: ["sh", "-c", "echo \"config-demo (Kiran N - 10446): password has ${#DB_PASSWORD} characters\"; sleep 3600"]
+      env:
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-credentials    # <- not created yet
+              key: DB_PASSWORD
