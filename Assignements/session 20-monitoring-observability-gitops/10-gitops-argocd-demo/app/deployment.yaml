@@ -9,7 +9,7 @@ metadata:
     app: session20-mini
     owner: kiran-n
 spec:
-  replicas: 2
+  replicas: 3
   selector:
     matchLabels:
       app: session20-mini
