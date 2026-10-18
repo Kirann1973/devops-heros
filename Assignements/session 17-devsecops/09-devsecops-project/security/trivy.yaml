@@ -1,0 +1,13 @@
+# Container image scanning - Trivy settings (Kiran N | 10446)
+# Security gate policy: fail on HIGH or CRITICAL vulnerabilities that already have a fix.
+severity:
+  - HIGH
+  - CRITICAL
+exit-code: 1
+scan:
+  scanners:
+    - vuln
+    - secret
+vulnerability:
+  ignore-unfixed: true
+ignorefile: security/.trivyignore

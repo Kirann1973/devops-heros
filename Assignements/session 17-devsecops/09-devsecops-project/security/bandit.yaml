@@ -1,0 +1,4 @@
+# SAST - Bandit settings (Kiran N | 10446)
+# Scan only our own code; tests use assert on purpose, so B101 is skipped there.
+exclude_dirs: ["tests", ".venv"]
+skips: []

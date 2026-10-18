@@ -1,0 +1,393 @@
+# Session 17 - DevSecOps pipeline | Kiran N - Roll No: 10446
+# Project: Assignements/session 17-devsecops/09-devsecops-project
+#
+#   Code ─► Build + Unit Test ─┬─► SAST (CodeQL + Bandit) ──┐
+#                              ├─► SCA (pip-audit) ─────────┼─► Docker Build ─► Image Scan (Trivy)
+#                              └─► Secret Scan (Gitleaks) ──┘                         │
+#                                                                                     ▼
+#                     Deploy to Kubernetes (kind) ◄── Push Image (GHCR) ◄── SECURITY GATE
+#
+# Every security job is a gate: a finding fails the job, the Security Gate job fails,
+# and the image is never pushed or deployed.
+
+name: Session 17 DevSecOps (Kiran N - 10446)
+
+on:
+  push:
+    branches: [assignment]
+    paths:
+      - "Assignements/session 17-devsecops/09-devsecops-project/**"
+      - ".github/workflows/session17-devsecops.yml"
+  pull_request:
+    branches: [assignment]
+    paths:
+      - "Assignements/session 17-devsecops/09-devsecops-project/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PROJECT: "Assignements/session 17-devsecops/09-devsecops-project"
+  IMAGE_NAME: session17-devsecops
+  TRIVY_IMAGE: aquasec/trivy:0.76.0
+  GITLEAKS_IMAGE: zricethezav/gitleaks:v8.30.1
+
+defaults:
+  run:
+    working-directory: "Assignements/session 17-devsecops/09-devsecops-project"
+
+jobs:
+  # ── 1. Build + Unit Test ──────────────────────────────────────────────
+  build-test:
+    name: 1. Build + Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Build (compile every module)
+        run: python -m compileall -q app && echo "Build OK - all modules compile"
+
+      - name: Run unit tests with a coverage gate (90%)
+        run: pytest -v --junitxml=test-results.xml --cov=app --cov-report=term-missing --cov-report=xml --cov-fail-under=90
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: test-reports
+          path: |
+            ${{ env.PROJECT }}/test-results.xml
+            ${{ env.PROJECT }}/coverage.xml
+
+  # ── 2. SAST ───────────────────────────────────────────────────────────
+  sast:
+    name: 2. SAST (CodeQL + Bandit)
+    needs: build-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: python
+          config-file: ./Assignements/session 17-devsecops/09-devsecops-project/security/codeql-config.yml
+
+      - name: CodeQL analysis (results go to the Security tab)
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: session17-codeql
+
+      - name: Install Bandit
+        run: pip install bandit
+
+      - name: Bandit report (all severities)
+        run: bandit -c security/bandit.yaml -r app -f txt -o bandit-report.txt --exit-zero && cat bandit-report.txt
+
+      - name: Bandit gate (fail on MEDIUM or HIGH)
+        run: bandit -c security/bandit.yaml -r app -ll
+
+      - name: Upload Bandit report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: sast-bandit-report
+          path: ${{ env.PROJECT }}/bandit-report.txt
+
+  # ── 3. SCA ────────────────────────────────────────────────────────────
+  sca:
+    name: 3. SCA (pip-audit)
+    needs: build-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Scan dependencies for known vulnerabilities
+        run: |
+          echo "Dependencies being checked:"
+          cat requirements.txt
+          echo
+          # bash runs with pipefail, so a finding still fails this step after tee
+          pip-audit -r requirements.txt --strict --desc on 2>&1 | tee sca-report.txt
+
+      - name: Upload SCA report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: sca-pip-audit-report
+          path: ${{ env.PROJECT }}/sca-report.txt
+
+  # ── 4. Secret Scan ────────────────────────────────────────────────────
+  secret-scan:
+    name: 4. Secret Scan (Gitleaks)
+    needs: build-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Scan the project for secrets
+        run: |
+          docker run --rm -v "$PWD:/src" $GITLEAKS_IMAGE \
+            dir /src --config /src/security/gitleaks.toml --redact --verbose \
+            --report-format json --report-path /src/gitleaks-report.json
+
+      - name: Upload secret scan report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: secret-scan-report
+          path: ${{ env.PROJECT }}/gitleaks-report.json
+
+  # ── 5. Docker Build ───────────────────────────────────────────────────
+  docker-build:
+    name: 5. Docker Build
+    needs: [sast, sca, secret-scan]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Build the image
+        run: |
+          docker build --build-arg APP_VERSION=${GITHUB_SHA::7} -t $IMAGE_NAME:${GITHUB_SHA::7} .
+          docker image ls $IMAGE_NAME
+          docker inspect --format 'User: {{.Config.User}}  Ports: {{.Config.ExposedPorts}}' $IMAGE_NAME:${GITHUB_SHA::7}
+
+      - name: Smoke test (read-only container, like in Kubernetes)
+        run: |
+          docker run -d --name app --read-only --tmpfs /tmp -p 8080:8080 $IMAGE_NAME:${GITHUB_SHA::7}
+          for i in $(seq 1 20); do curl -fs http://localhost:8080/health && break; sleep 1; done
+          echo
+          curl -fs http://localhost:8080/api/info
+          echo
+          docker exec app id
+          docker rm -f app
+
+      - name: Save the image for the next jobs
+        run: docker save $IMAGE_NAME:${GITHUB_SHA::7} -o image.tar
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: docker-image
+          path: ${{ env.PROJECT }}/image.tar
+          retention-days: 3
+
+  # ── 6. Container Image Scan ───────────────────────────────────────────
+  image-scan:
+    name: 6. Image Scan (Trivy)
+    needs: docker-build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Download image artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: docker-image
+          path: ${{ env.PROJECT }}
+
+      - name: Load image
+        run: docker load -i image.tar
+
+      - name: Full vulnerability report (all severities, information only)
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/src" -w /src -v "$HOME/.cache/trivy:/root/.cache/trivy" $TRIVY_IMAGE \
+            image --exit-code 0 --output trivy-full-report.txt $IMAGE_NAME:${GITHUB_SHA::7}
+          grep -E "^Total" trivy-full-report.txt || true
+
+      - name: SARIF report for the Security tab
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/src" -w /src -v "$HOME/.cache/trivy:/root/.cache/trivy" $TRIVY_IMAGE \
+            image --exit-code 0 --format sarif --output trivy-image.sarif $IMAGE_NAME:${GITHUB_SHA::7}
+
+      - name: Upload SARIF to GitHub code scanning
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: ${{ env.PROJECT }}/trivy-image.sarif
+          category: session17-trivy-image
+
+      - name: Image gate - fail on fixable HIGH / CRITICAL vulnerabilities
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock -v "$PWD:/src" -w /src -v "$HOME/.cache/trivy:/root/.cache/trivy" $TRIVY_IMAGE \
+            image --config security/trivy.yaml $IMAGE_NAME:${GITHUB_SHA::7}
+
+      - name: Config gate - Dockerfile + Kubernetes manifests (HIGH / CRITICAL)
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src -v "$HOME/.cache/trivy:/root/.cache/trivy" $TRIVY_IMAGE \
+            config --severity HIGH,CRITICAL --exit-code 1 .
+
+      - name: Upload Trivy reports
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: image-scan-report
+          path: |
+            ${{ env.PROJECT }}/trivy-full-report.txt
+            ${{ env.PROJECT }}/trivy-image.sarif
+
+  # ── 7. Security Gate ──────────────────────────────────────────────────
+  security-gate:
+    name: 7. Security Gate
+    needs: [build-test, sast, sca, secret-scan, docker-build, image-scan]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check every required stage
+        working-directory: .
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "## Session 17 security gate (Kiran N - Roll No 10446)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Stage | Result |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          failed=0
+          for job in build-test sast sca secret-scan docker-build image-scan; do
+            result=$(echo "$RESULTS" | jq -r --arg j "$job" '.[$j].result')
+            if [ "$result" = "success" ]; then icon="✅"; else icon="❌"; failed=1; fi
+            printf "%-14s %s\n" "$job" "$result"
+            echo "| $job | $icon $result |" >> "$GITHUB_STEP_SUMMARY"
+          done
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$failed" = 1 ]; then
+            echo "**GATE FAILED** - the image will NOT be pushed or deployed." >> "$GITHUB_STEP_SUMMARY"
+            echo "Security gate FAILED - stopping the pipeline."
+            exit 1
+          fi
+          echo "**GATE PASSED** - the image can be pushed and deployed." >> "$GITHUB_STEP_SUMMARY"
+          echo "Security gate PASSED."
+
+  # ── 8. Push Image ─────────────────────────────────────────────────────
+  push:
+    name: 8. Push Image (GHCR)
+    needs: security-gate
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.push.outputs.image }}
+      tag: ${{ steps.push.outputs.tag }}
+    steps:
+      - name: Download the scanned image (the exact image that passed the gate)
+        uses: actions/download-artifact@v7
+        with:
+          name: docker-image
+          path: ${{ env.PROJECT }}
+
+      - name: Load image
+        run: docker load -i image.tar
+
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Tag and push
+        id: push
+        run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          TAG=${GITHUB_SHA::7}
+          IMAGE=ghcr.io/$OWNER/$IMAGE_NAME
+          docker tag $IMAGE_NAME:$TAG $IMAGE:$TAG
+          docker tag $IMAGE_NAME:$TAG $IMAGE:latest
+          docker push $IMAGE:$TAG
+          docker push $IMAGE:latest
+          echo "image=$IMAGE:$TAG" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+  # ── 9. Deploy to Kubernetes ───────────────────────────────────────────
+  deploy:
+    name: 9. Deploy to Kubernetes (kind)
+    needs: push
+    runs-on: ubuntu-latest
+    environment: development
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Create a Kubernetes cluster on the runner (kind)
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: session17
+
+      - name: Pull the released image from GHCR into the cluster
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker pull ${{ needs.push.outputs.image }}
+          kind load docker-image ${{ needs.push.outputs.image }} --name session17
+
+      - name: Deploy the manifests
+        run: |
+          sed -i "s|__TAG__|${{ needs.push.outputs.tag }}|" k8s/deployment.yaml
+          grep "image:" k8s/deployment.yaml
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/deployment.yaml
+          kubectl apply -f k8s/service.yaml
+
+      - name: Wait for the rollout
+        run: kubectl -n devsecops rollout status deployment/devsecops-python --timeout=120s
+
+      - name: Verify the deployment
+        run: |
+          kubectl -n devsecops get deployment,pods,service -o wide
+          echo
+          echo "Image running in the pods:"
+          kubectl -n devsecops get pods -o jsonpath='{range .items[*]}{.metadata.name}{"  "}{.spec.containers[0].image}{"\n"}{end}'
+
+      - name: Smoke test through the Kubernetes Service
+        run: |
+          kubectl -n devsecops port-forward service/devsecops-python-service 8080:80 >/tmp/pf.log 2>&1 &
+          for i in $(seq 1 20); do curl -fs http://localhost:8080/health && break; sleep 1; done
+          echo
+          curl -fs http://localhost:8080/api/info
+          echo
+          curl -fs -X POST http://localhost:8080/api/calculate -H "Content-Type: application/json" -d '{"a": 104, "b": 46, "operation": "add"}'
+          echo
+          curl -fs http://localhost:8080/ | grep -o "Kiran N | Roll No: 10446"
+
+      - name: Write the job summary
+        run: |
+          {
+            echo "## Session 17 deployment (Kiran N - Roll No 10446)"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Image | \`${{ needs.push.outputs.image }}\` |"
+            echo "| Cluster | kind \`session17\`, namespace \`devsecops\` |"
+            echo "| Ready replicas | $(kubectl -n devsecops get deploy devsecops-python -o jsonpath='{.status.readyReplicas}')/2 |"
+            echo "| /health | \`$(curl -fs http://localhost:8080/health)\` |"
+          } >> "$GITHUB_STEP_SUMMARY"

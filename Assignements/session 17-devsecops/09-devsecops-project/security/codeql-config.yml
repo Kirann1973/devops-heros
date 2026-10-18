@@ -1,0 +1,6 @@
+# SAST - CodeQL settings (Kiran N | 10446)
+name: "Session 17 CodeQL config"
+queries:
+  - uses: security-and-quality
+paths:
+  - "Assignements/session 17-devsecops/09-devsecops-project/app"

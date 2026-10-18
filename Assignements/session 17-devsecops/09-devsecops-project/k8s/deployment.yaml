@@ -1,0 +1,70 @@
+# Session 17 deployment - Kiran N | Roll No: 10446
+# The pipeline replaces __TAG__ with the commit tag it pushed to GHCR.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: devsecops-python
+  namespace: devsecops
+  labels:
+    app: devsecops-python
+    owner: kiran-n-10446
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: devsecops-python
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: devsecops-python
+        owner: kiran-n-10446
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: devsecops-python
+          image: ghcr.io/kirann1973/session17-devsecops:__TAG__
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 192Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

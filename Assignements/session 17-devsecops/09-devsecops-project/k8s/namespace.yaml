@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: devsecops
+  labels:
+    owner: kiran-n-10446
+    # Pod Security Admission: reject pods that are not "restricted"
+    pod-security.kubernetes.io/enforce: restricted

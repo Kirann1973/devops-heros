@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Session 17 DevSecOps - {{ owner }}</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 760px; margin: 40px auto; padding: 0 16px; color: #1f2937; }
+    h1 { margin-bottom: 4px; }
+    .who { color: #4b5563; margin-top: 0; }
+    ol { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; padding: 0; counter-reset: s; }
+    li { counter-increment: s; background: #ecfdf5; border: 1px solid #10b981; border-radius: 6px; padding: 6px 10px; }
+    li::before { content: counter(s) ". "; font-weight: 600; }
+    code { background: #f3f4f6; padding: 2px 5px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h1>Session 17 - DevSecOps Pipeline</h1>
+  <p class="who">{{ owner }} | Roll No: {{ roll_no }} | Version: <code>{{ version }}</code></p>
+  <p>This page is served from a container that passed every stage below before it reached Kubernetes:</p>
+  <ol>
+    {% for stage in stages %}<li>{{ stage }}</li>{% endfor %}
+  </ol>
+  <p>Try <code>/health</code>, <code>/api/info</code>, <code>POST /api/calculate</code> and <code>POST /api/password-check</code>.</p>
+</body>
+</html>

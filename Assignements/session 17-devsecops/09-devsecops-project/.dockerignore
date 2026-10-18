@@ -1,0 +1,14 @@
+# keep the image small: only app/ and requirements.txt are needed
+.git
+.github
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+.coverage
+tests/
+k8s/
+security/
+*.md
+*.sh
+image.tar
