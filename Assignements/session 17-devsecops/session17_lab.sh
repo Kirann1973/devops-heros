@@ -29,13 +29,16 @@ install_tools() {
     aarch64|arm64) gl=arm64; tv=ARM64 ;;
     *)             gl=x64;   tv=64bit ;;
   esac
-  # a venv made without the python3-venv package has no pip, so check pip itself
+  # Ubuntu's python3 has no ensurepip unless python3-venv is installed, so if the normal venv fails
+  # make one without pip and bootstrap pip with the official get-pip.py (no apt needed)
   if ! "$WORK/venv/bin/python" -m pip --version >/dev/null 2>&1; then
     rm -rf "$WORK/venv"
-    python3 -m venv "$WORK/venv" && "$WORK/venv/bin/python" -m pip --version >/dev/null 2>&1 || {
-      sudo apt-get update -qq && sudo apt-get install -y -qq python3-venv python3-pip
-      rm -rf "$WORK/venv"; python3 -m venv "$WORK/venv"
-    }
+    if ! python3 -m venv "$WORK/venv"; then
+      rm -rf "$WORK/venv"
+      python3 -m venv --without-pip "$WORK/venv" || return 1
+      curl -fsSL https://bootstrap.pypa.io/get-pip.py -o "$WORK/get-pip.py" || return 1
+      "$WORK/venv/bin/python" "$WORK/get-pip.py" -q || return 1
+    fi
   fi
   "$WORK/venv/bin/python" -m pip install -q --upgrade pip
   "$WORK/venv/bin/python" -m pip install -q -r "$PROJECT/requirements-dev.txt" bandit pip-audit || return 1
