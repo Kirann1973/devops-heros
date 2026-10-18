@@ -297,7 +297,11 @@ pods
 NEWPOD=$(k get pods -l app=stockpilot-frontend --sort-by=.metadata.creationTimestamp -o name | tail -1)
 note 'investigate'
 run "k logs $NEWPOD --previous --tail 20 2>/dev/null | grep -E 'emerg|host not found' | cut -c1-200 || k logs $NEWPOD --tail 20 | grep -E 'emerg|host not found' | cut -c1-200"
-run "kubectl run dns-test -n $NS --rm -i --restart=Never --image=busybox:1.37 -q -- sh -c 'nslookup stockpilot-backend.stockpilot-prod.svc.cluster.local; echo ---; nslookup stockpilot-backend.stockpilot.svc.cluster.local' 2>&1 | grep -vE '^\$|^warning' | cut -c1-120"
+kubectl delete pod dns-test -n $NS --ignore-not-found >/dev/null 2>&1
+kubectl run dns-test -n $NS --restart=Never --image=busybox:1.37 -- sh -c 'nslookup stockpilot-backend.stockpilot-prod.svc.cluster.local; echo ---; nslookup stockpilot-backend.stockpilot.svc.cluster.local' >/dev/null
+wait_for 90 "k get pod dns-test -o jsonpath='{.status.phase}' | grep -qE 'Succeeded|Failed'"
+run "k logs dns-test | grep -vE '^\\$' | cut -c1-120   # nslookup from a busybox pod: wrong namespace, then the right one"
+kubectl delete pod dns-test -n $NS --wait=false >/dev/null 2>&1
 say "ROOT CAUSE: CoreDNS has no record for stockpilot-backend.stockpilot-prod (NXDOMAIN). nginx resolves proxy_pass hosts at"
 say "            start-up, fails with 'host not found in upstream' and the container crashes. The right name is"
 say "            stockpilot-backend.stockpilot.svc.cluster.local (<service>.<namespace>.svc.cluster.local)."
