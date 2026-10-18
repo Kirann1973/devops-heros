@@ -1,0 +1,23 @@
+# Kiran N | Roll No: 10446 - Session 21 final troubleshooting challenge
+# Helm values for deploying my StockPilot chart (github.com/Kirann1973/stockpilot-devops-capstone, helm/stockpilot)
+# on Minikube in my Ubuntu VM. Used with: helm upgrade --install stockpilot <chart> -n stockpilot -f values-lab.yaml
+image:
+  # the commit SHA that GitHub Actions built, Trivy-scanned and pushed to GHCR (amd64 + arm64)
+  tag: "bc270c578fa29ff10944259ffc352570d8ca4841"
+
+ingress:
+  enabled: true
+  className: nginx
+  host: ""          # no host rule, so the app also opens on the VM IP from my Mac
+
+hpa:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 60
+
+monitoring:
+  serviceMonitor:
+    enabled: false  # Prometheus Operator is not installed in this lab (monitoring is shown in Session 20 and in StockPilot)
+  grafanaDashboard:
+    enabled: true   # a plain ConfigMap with the dashboard JSON

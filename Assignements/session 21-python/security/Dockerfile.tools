@@ -1,0 +1,7 @@
+# Kiran N | Roll No: 10446 - Session 21
+# Small image with the Python security scanners, so nothing has to be installed on the VM.
+#   Bandit    -> SAST: finds insecure Python code (shell injection, unsafe YAML, hard-coded passwords...)
+#   pip-audit -> SCA:  checks Python dependencies against the PyPI / OSV vulnerability databases
+FROM python:3.13-slim
+RUN pip install --no-cache-dir --root-user-action=ignore bandit==1.9.4 pip-audit==2.10.1
+WORKDIR /src
