@@ -1,0 +1,75 @@
+# Kiran N | Roll No: 10446
+# Each rule is a PromQL condition. It is "pending" while true for less than "for", then "firing",
+# and Prometheus sends firing alerts to Alertmanager.
+groups:
+  - name: kiran-app
+    rules:
+      - alert: AppDown
+        expr: up{job="kiran-app"} == 0
+        for: 15s
+        labels:
+          severity: critical
+        annotations:
+          summary: "kiran-app is down: Prometheus cannot scrape {{ $labels.instance }}"
+
+      - alert: HighErrorRate
+        expr: |
+          sum(rate(http_requests_total{job="kiran-app",status=~"5.."}[1m]))
+            / sum(rate(http_requests_total{job="kiran-app"}[1m])) > 0.10
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "More than 10% of requests fail ({{ $value | humanizePercentage }})"
+
+      - alert: SlowRequests
+        expr: |
+          histogram_quantile(0.95,
+            sum by (le) (rate(http_request_duration_seconds_bucket{job="kiran-app"}[1m]))) > 1
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "95% of requests take up to {{ $value | humanizeDuration }} (limit 1s)"
+
+      - alert: HighAppCPU
+        expr: rate(process_cpu_seconds_total{job="kiran-app"}[30s]) > 0.5
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: "kiran-app uses {{ $value | printf \"%.2f\" }} CPU cores (limit 0.5)"
+
+      - alert: HighAppMemory
+        expr: process_resident_memory_bytes{job="kiran-app"} > 200e6
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "kiran-app uses {{ $value | humanize1024 }}B of memory (limit 200 MB)"
+
+  - name: host
+    rules:
+      - alert: HostHighCPU
+        expr: 100 - avg(rate(node_cpu_seconds_total{mode="idle"}[1m])) * 100 > 85
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "VM CPU at {{ $value | printf \"%.0f\" }}%"
+
+      - alert: HostHighMemory
+        expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 > 90
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "VM memory at {{ $value | printf \"%.0f\" }}%"
+
+      - alert: HostDiskAlmostFull
+        expr: (1 - node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 > 90
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "VM disk / is {{ $value | printf \"%.0f\" }}% full"

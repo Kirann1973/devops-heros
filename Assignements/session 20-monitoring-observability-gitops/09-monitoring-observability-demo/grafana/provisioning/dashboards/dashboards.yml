@@ -1,0 +1,8 @@
+# Kiran N | Roll No: 10446 - load every dashboard JSON from /var/lib/grafana/dashboards
+apiVersion: 1
+providers:
+  - name: session20
+    folder: Session 20
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

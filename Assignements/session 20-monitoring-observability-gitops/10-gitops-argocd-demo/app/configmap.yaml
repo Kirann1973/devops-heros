@@ -1,0 +1,16 @@
+# Kiran N | Roll No: 10446 - the web page, so the pods show who deployed them and from where
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: session20-mini-page
+  namespace: session20
+data:
+  index.html: |
+    <!doctype html>
+    <html><head><meta charset="utf-8"><title>Session 20 GitOps - Kiran N</title></head>
+    <body style="font-family:system-ui,sans-serif;max-width:700px;margin:40px auto;padding:0 16px">
+    <h1>Session 20 - GitOps with Argo CD</h1>
+    <p>Kiran N | Roll No: 10446</p>
+    <p>This app was deployed by Argo CD from Git (repo Kirann1973/devops-heros, branch assignment).
+    Nobody ran kubectl apply for it.</p>
+    </body></html>

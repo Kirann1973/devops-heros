@@ -1,0 +1,35 @@
+# Kiran N | Roll No: 10446
+global:
+  scrape_interval: 5s       # short for the demo; 15s-60s is normal in production
+  evaluation_interval: 5s   # how often alert rules are checked
+  external_labels:
+    owner: kiran-n-10446
+
+rule_files:
+  - /etc/prometheus/alert-rules.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  - job_name: kiran-app          # my app: requests, errors, latency, CPU, memory
+    static_configs:
+      - targets: ["app:8000"]
+
+  - job_name: node               # the VM itself: CPU, memory, disk, network
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: alertmanager
+    static_configs:
+      - targets: ["alertmanager:9093"]
+
+  - job_name: jaeger
+    static_configs:
+      - targets: ["jaeger:14269"]

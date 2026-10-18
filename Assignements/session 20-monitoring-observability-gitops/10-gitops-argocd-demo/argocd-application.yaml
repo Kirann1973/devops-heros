@@ -1,0 +1,28 @@
+# Kiran N | Roll No: 10446
+# Applied once with kubectl. It tells Argo CD which Git repo/branch/folder to watch and where to deploy it.
+# It lives outside app/ so Argo CD does not try to manage itself.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: session20-mini
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io   # deleting the Application also deletes what it deployed
+spec:
+  project: default
+
+  source:
+    repoURL: https://github.com/Kirann1973/devops-heros.git
+    targetRevision: assignment
+    path: Assignements/session 20-monitoring-observability-gitops/10-gitops-argocd-demo/app
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: session20
+
+  syncPolicy:
+    automated:
+      prune: true      # delete from the cluster what was deleted from Git
+      selfHeal: true   # undo manual changes made with kubectl
+    syncOptions:
+      - CreateNamespace=true

@@ -1,0 +1,15 @@
+# Kiran N | Roll No: 10446
+# Alertmanager groups, deduplicates and routes alerts. Here every alert goes to one webhook
+# (the alert-receiver container). In real life this would be Slack, e-mail or PagerDuty.
+route:
+  receiver: kiran-webhook
+  group_by: ["alertname"]
+  group_wait: 5s          # wait a moment to group alerts that fire together
+  group_interval: 10s
+  repeat_interval: 1h     # do not spam: repeat an unresolved alert only every hour
+
+receivers:
+  - name: kiran-webhook
+    webhook_configs:
+      - url: http://alert-receiver:5001/
+        send_resolved: true   # also notify when the problem is fixed

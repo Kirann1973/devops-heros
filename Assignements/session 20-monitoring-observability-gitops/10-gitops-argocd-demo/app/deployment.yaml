@@ -1,0 +1,50 @@
+# Kiran N | Roll No: 10446
+# Desired state in Git. Argo CD makes the cluster match this file.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: session20-mini
+  namespace: session20
+  labels:
+    app: session20-mini
+    owner: kiran-n
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: session20-mini
+  template:
+    metadata:
+      labels:
+        app: session20-mini
+        owner: kiran-n
+    spec:
+      containers:
+        - name: app
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            periodSeconds: 10
+          volumeMounts:
+            - name: page
+              mountPath: /usr/share/nginx/html
+      volumes:
+        - name: page
+          configMap:
+            name: session20-mini-page

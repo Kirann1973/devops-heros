@@ -1,0 +1,88 @@
+# Kiran N | Roll No: 10446 - Session 20 monitoring + observability stack
+#   app            -> my web app: /metrics, JSON logs, traces            http://<vm-ip>:8000
+#   prometheus     -> collects metrics, evaluates alert rules            http://<vm-ip>:9090
+#   alertmanager   -> routes firing alerts to the webhook                http://<vm-ip>:9093
+#   alert-receiver -> prints the notifications Alertmanager sends
+#   node-exporter  -> CPU, memory, disk of the VM
+#   jaeger         -> stores and shows traces                            http://<vm-ip>:16686
+#   grafana        -> dashboards (Prometheus + Jaeger data sources)      http://<vm-ip>:3000
+name: session20
+
+services:
+  app:
+    image: python:3.13-alpine
+    command: ["python", "-u", "/app/app.py"]
+    environment:
+      SERVICE_NAME: kiran-app
+      APP_VERSION: "1.0.0"
+      ZIPKIN_URL: http://jaeger:9411/api/v2/spans
+    volumes:
+      - ./app:/app:ro
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    depends_on:
+      - jaeger
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=1d
+      - --web.enable-lifecycle
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+    ports:
+      - "9090:9090"
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "9093:9093"
+
+  alert-receiver:
+    image: python:3.13-alpine
+    command: ["python", "-u", "/receiver/receiver.py"]
+    volumes:
+      - ./alert-receiver:/receiver:ro
+
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    command:
+      - --path.rootfs=/host
+    pid: host
+    volumes:
+      - /:/host:ro
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    environment:
+      COLLECTOR_ZIPKIN_HOST_PORT: ":9411"   # accept spans in Zipkin format from the app
+    ports:
+      - "16686:16686"
+
+  grafana:
+    image: grafana/grafana:12.1.1
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: session20      # local demo only
+      GF_AUTH_ANONYMOUS_ENABLED: "true"          # open the dashboard without logging in
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/kiran-session20.json
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+      - jaeger
