@@ -29,13 +29,16 @@ install_tools() {
     aarch64|arm64) gl=arm64; tv=ARM64 ;;
     *)             gl=x64;   tv=64bit ;;
   esac
-  if [ ! -x "$WORK/venv/bin/python" ]; then
-    python3 -m venv "$WORK/venv" || {
-      sudo apt-get update -qq && sudo apt-get install -y -qq python3-venv
+  # a venv made without the python3-venv package has no pip, so check pip itself
+  if ! "$WORK/venv/bin/python" -m pip --version >/dev/null 2>&1; then
+    rm -rf "$WORK/venv"
+    python3 -m venv "$WORK/venv" && "$WORK/venv/bin/python" -m pip --version >/dev/null 2>&1 || {
+      sudo apt-get update -qq && sudo apt-get install -y -qq python3-venv python3-pip
       rm -rf "$WORK/venv"; python3 -m venv "$WORK/venv"
     }
   fi
-  "$WORK/venv/bin/pip" install -q -r "$PROJECT/requirements-dev.txt" bandit pip-audit
+  "$WORK/venv/bin/python" -m pip install -q --upgrade pip
+  "$WORK/venv/bin/python" -m pip install -q -r "$PROJECT/requirements-dev.txt" bandit pip-audit || return 1
   if [ ! -x "$WORK/bin/gitleaks" ]; then
     curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v$GITLEAKS_VERSION/gitleaks_${GITLEAKS_VERSION}_linux_$gl.tar.gz" | tar xz -C "$WORK/bin" gitleaks
   fi
@@ -54,7 +57,7 @@ cleanup() {
 part1() {
 section s17-01-tests-sast "Build, unit tests and SAST (Bandit)"
 note 'installing the tools into a python venv and ~/devsecops-kiran/bin'
-install_tools > "$WORK/install.log" 2>&1 || say "tool install failed, see $WORK/install.log"
+install_tools > "$WORK/install.log" 2>&1 || { say "tool install failed, last lines of $WORK/install.log:"; tail -15 "$WORK/install.log" | tee -a "$OUT"; }
 run "$WORK/venv/bin/python --version; $WORK/venv/bin/bandit --version | head -1; $WORK/venv/bin/pip-audit --version; gitleaks version; trivy --version | head -1"
 note 'build: every module must compile'
 run "cd $PROJECT && $WORK/venv/bin/python -m compileall -q app && echo 'Build OK'"
@@ -83,7 +86,7 @@ gate "cd $WORK && $WORK/venv/bin/bandit -r bad-code -ll -f custom --msg-template
 # ---------------------------------------------------------------- 2. SCA + secret scanning
 part2() {
 section s17-02-sca-secrets "SCA (pip-audit) and secret scanning (Gitleaks)"
-[ -x "$WORK/bin/gitleaks" ] || install_tools > "$WORK/install.log" 2>&1 || say "tool install failed, see $WORK/install.log"
+[ -x "$WORK/bin/gitleaks" ] || install_tools > "$WORK/install.log" 2>&1 || { say "tool install failed, last lines of $WORK/install.log:"; tail -15 "$WORK/install.log" | tee -a "$OUT"; }
 note 'SCA - pip-audit checks every pinned dependency against the vulnerability databases'
 run "cat $PROJECT/requirements.txt"
 gate "$WORK/venv/bin/pip-audit -r $PROJECT/requirements.txt --strict"
@@ -102,12 +105,18 @@ gate "gitleaks dir $WORK/leak-demo --config $PROJECT/security/gitleaks.toml --no
 # ---------------------------------------------------------------- 3. Docker build + image scan + security gate
 part3() {
 section s17-03-image-scan "Docker build inside Minikube, Trivy image scan and the security gate"
-[ -x "$WORK/bin/trivy" ] || install_tools > "$WORK/install.log" 2>&1 || say "tool install failed, see $WORK/install.log"
+[ -x "$WORK/bin/trivy" ] || install_tools > "$WORK/install.log" 2>&1 || { say "tool install failed, last lines of $WORK/install.log:"; tail -15 "$WORK/install.log" | tee -a "$OUT"; }
 note 'build two versions of the image straight into Minikube (native for this machine)'
-run "minikube image build -t $IMAGE:local-v1 --build-opt=build-arg=APP_VERSION=local-v1 $PROJECT | tail -3"
-run "minikube image build -t $IMAGE:local-v2 --build-opt=build-arg=APP_VERSION=local-v2 $PROJECT | tail -3"
+note 'each version gets its own APP_VERSION baked into a copy of the Dockerfile (build args are not supported by every Minikube runtime)'
+for v in local-v1 local-v2; do
+  rm -rf "$WORK/build-$v"; cp -r "$PROJECT" "$WORK/build-$v"
+  sed -i "s/^ARG APP_VERSION=dev/ARG APP_VERSION=$v/" "$WORK/build-$v/Dockerfile"
+done
+run "grep -n '^ARG APP_VERSION' $WORK/build-local-v1/Dockerfile $WORK/build-local-v2/Dockerfile"
+run "minikube image build -t $IMAGE:local-v1 $WORK/build-local-v1 2>&1 | tail -4"
+run "minikube image build -t $IMAGE:local-v2 $WORK/build-local-v2 2>&1 | tail -4"
 run "minikube image ls | grep session17"
-run "minikube image save $IMAGE:local-v1 $WORK/image.tar && ls -lh $WORK/image.tar"
+run "rm -f $WORK/image.tar; minikube image save $IMAGE:local-v1 $WORK/image.tar && ls -lh $WORK/image.tar"
 note 'Trivy full report: every severity, information only'
 run "trivy image -q --input $WORK/image.tar --format table 2>&1 | grep -E '^Total|^Report Summary' "
 note 'the security gate: fail only on HIGH/CRITICAL that already have a fix (security/trivy.yaml)'
