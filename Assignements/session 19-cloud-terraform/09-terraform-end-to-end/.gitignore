@@ -1,0 +1,10 @@
+# Terraform working files and state stay local
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+crash.log
+# this project's terraform.tfvars has no secrets and the lock file pins the provider, so both are committed
+!terraform.tfvars
+!.terraform.lock.hcl

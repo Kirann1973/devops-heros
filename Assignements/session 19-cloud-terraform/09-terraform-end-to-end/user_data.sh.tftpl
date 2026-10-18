@@ -1,0 +1,25 @@
+#!/bin/bash
+# Kiran N | Roll No: 10446 - runs once at first boot of the EC2 instance
+dnf install -y nginx
+TOKEN=$(curl -s -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
+meta() { curl -s -H "X-aws-ec2-metadata-token: $TOKEN" "http://169.254.169.254/latest/meta-data/$1"; }
+cat > /usr/share/nginx/html/index.html <<HTML
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Session 19 - ${owner}</title>
+<style>body{font-family:system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 16px;color:#1f2937}
+td{padding:4px 12px;border-bottom:1px solid #e5e7eb}code{background:#f3f4f6;padding:2px 5px;border-radius:4px}</style></head>
+<body>
+<h1>Session 19 - Cloud &amp; Terraform in Action</h1>
+<p>${owner} | Roll No: ${roll_no} | Environment: <code>${environment}</code></p>
+<p>This page is served by nginx on an EC2 instance that Terraform created inside its own VPC.</p>
+<table>
+<tr><td>Region</td><td>${region}</td></tr>
+<tr><td>Availability zone</td><td>$(meta placement/availability-zone)</td></tr>
+<tr><td>Instance ID</td><td>$(meta instance-id)</td></tr>
+<tr><td>Instance type</td><td>$(meta instance-type)</td></tr>
+<tr><td>Private IP</td><td>$(meta local-ipv4)</td></tr>
+<tr><td>Public IP</td><td>$(meta public-ipv4)</td></tr>
+</table>
+</body></html>
+HTML
+systemctl enable --now nginx
