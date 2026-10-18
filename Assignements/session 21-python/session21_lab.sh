@@ -144,9 +144,17 @@ if ! kubectl get nodes >/dev/null 2>&1; then
 fi
 note 'Ingress controller and metrics-server (needed by the HPA)'
 minikube addons enable ingress > /dev/null 2>&1; minikube addons enable metrics-server > /dev/null 2>&1
+note 'wait until the Ingress controller and its admission webhook are ready'
+wait_for 120 "kubectl -n ingress-nginx get deploy ingress-nginx-controller"
 kubectl -n ingress-nginx rollout status deploy/ingress-nginx-controller --timeout=300s > /dev/null 2>&1
-run "kubectl get nodes; minikube addons list | grep -E '\\| (ingress|metrics-server) '"
+kubectl -n ingress-nginx wait --for=condition=complete job --all --timeout=180s > /dev/null 2>&1
+wait_for 120 "kubectl -n ingress-nginx get endpoints ingress-nginx-controller-admission -o jsonpath='{.subsets[0].addresses[0].ip}' | grep -q ."
+run "kubectl get nodes; kubectl get pods -n ingress-nginx; kubectl get pods -n kube-system -l k8s-app=metrics-server"
 run "cat '$VALUES' | grep -vE '^\\s*#'"
+if helm status stockpilot -n $NS 2>/dev/null | grep -q 'STATUS: failed'; then
+  note 'an earlier install failed, remove it first'
+  run "helm uninstall stockpilot -n $NS --wait"
+fi
 run "helm upgrade --install stockpilot '$CHART' -n $NS --create-namespace -f '$VALUES' --wait --timeout 8m"
 run "helm list -n $NS"
 pods
@@ -254,20 +262,25 @@ app_check
 
 # ---------------------------------------------------------------- 14. Issue 5
 part14() {
-section s21-14-issue5-probe "Issue 5: a readiness probe on a path that does not exist"
-note 'break it: the frontend readiness probe is changed to /healthz (nginx only answers on /nginx-health)'
-run "k patch deploy stockpilot-frontend --type json -p '[{\"op\":\"replace\",\"path\":\"/spec/template/spec/containers/0/readinessProbe/httpGet/path\",\"value\":\"/healthz\"}]'"
-sleep 40
+section s21-14-issue5-probe "Issue 5: a readiness probe that checks the wrong port"
+note 'break it: the frontend readiness probe is changed to port 9090 (copied from another app), nginx listens on 8080'
+run "k patch deploy stockpilot-frontend --type json -p '[{\"op\":\"replace\",\"path\":\"/spec/template/spec/containers/0/readinessProbe/httpGet/port\",\"value\":9090}]'"
+wait_for 60 "k get pods -l app=stockpilot-frontend --no-headers | grep -q ' 0/1 '"
+sleep 25
 note 'symptom: the new pod is Running but never Ready, and the rollout is stuck'
 pods
 run "k rollout status deploy/stockpilot-frontend --timeout=10s"
 note 'investigate'
-run "k describe pod \$(k get pods -l app=stockpilot-frontend --sort-by=.metadata.creationTimestamp -o name | tail -1 | cut -d/ -f2) | grep -E 'Readiness|Unhealthy' | cut -c1-170"
-run "k exec deploy/stockpilot-frontend -- sh -c 'wget -qO- -T 2 localhost:8080/nginx-health; wget -qO- -T 2 localhost:8080/healthz 2>&1 | head -1'"
-say "ROOT CAUSE: /healthz returns 404, so the probe fails and Kubernetes never sends traffic to the new pod."
-say "            The 2 old pods keep serving (maxUnavailable), so the app stays up, but the new version never rolls out."
+NEWPOD=$(k get pods -l app=stockpilot-frontend --sort-by=.metadata.creationTimestamp -o name | tail -1)
+run "k describe $NEWPOD | grep -E 'Readiness:|Unhealthy' | cut -c1-170"
+run "k get deploy stockpilot-frontend -o jsonpath='containerPort: {.spec.template.spec.containers[0].ports[0].containerPort}{\"\\n\"}probe port:    {.spec.template.spec.containers[0].readinessProbe.httpGet.port}{\"\\n\"}'"
+run "k exec $NEWPOD -- sh -c 'echo -n \"port 8080: \"; wget -qO- -T 2 127.0.0.1:8080/nginx-health; echo -n \"port 9090: \"; wget -qO- -T 2 127.0.0.1:9090/nginx-health 2>&1 | head -1'"
+say "ROOT CAUSE: the probe calls port 9090, nothing listens there (connection refused), so the pod never becomes Ready"
+say "            and gets no traffic. The 2 old pods keep serving (maxUnavailable), so the app stays up, but the new"
+say "            version never rolls out."
 note 'fix: undo the rollout (go back to the previous ReplicaSet)'
 run "k rollout undo deploy/stockpilot-frontend && k rollout status deploy/stockpilot-frontend --timeout=120s"
+wait_for 60 "[ \$(k get pods --no-headers | grep -vc ' 1/1 ') = 0 ]"
 note 'verify'
 pods
 app_check
@@ -284,12 +297,13 @@ pods
 NEWPOD=$(k get pods -l app=stockpilot-frontend --sort-by=.metadata.creationTimestamp -o name | tail -1)
 note 'investigate'
 run "k logs $NEWPOD --previous --tail 20 2>/dev/null | grep -E 'emerg|host not found' | cut -c1-200 || k logs $NEWPOD --tail 20 | grep -E 'emerg|host not found' | cut -c1-200"
-run "kubectl run dns-test -n $NS --rm -i --restart=Never --image=busybox:1.37 -q -- sh -c 'nslookup stockpilot-backend.stockpilot-prod.svc.cluster.local; echo ---; nslookup stockpilot-backend.stockpilot.svc.cluster.local' 2>&1 | grep -vE '^\$' | cut -c1-120"
+run "kubectl run dns-test -n $NS --rm -i --restart=Never --image=busybox:1.37 -q -- sh -c 'nslookup stockpilot-backend.stockpilot-prod.svc.cluster.local; echo ---; nslookup stockpilot-backend.stockpilot.svc.cluster.local' 2>&1 | grep -vE '^\$|^warning' | cut -c1-120"
 say "ROOT CAUSE: CoreDNS has no record for stockpilot-backend.stockpilot-prod (NXDOMAIN). nginx resolves proxy_pass hosts at"
 say "            start-up, fails with 'host not found in upstream' and the container crashes. The right name is"
 say "            stockpilot-backend.stockpilot.svc.cluster.local (<service>.<namespace>.svc.cluster.local)."
 note 'fix: undo the rollout'
 run "k rollout undo deploy/stockpilot-frontend && k rollout status deploy/stockpilot-frontend --timeout=120s"
+wait_for 60 "[ \$(k get pods --no-headers | grep -vc ' 1/1 ') = 0 ]"
 note 'verify'
 run "k get deploy stockpilot-frontend -o jsonpath='{.spec.template.spec.containers[0].env}'; echo"
 pods
