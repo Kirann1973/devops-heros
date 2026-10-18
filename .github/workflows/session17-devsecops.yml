@@ -35,6 +35,8 @@ env:
 
 defaults:
   run:
+    # "shell: bash" turns on pipefail, so a failing scan piped into tee still fails the step
+    shell: bash
     working-directory: "Assignements/session 17-devsecops/09-devsecops-project"
 
 jobs:
@@ -132,7 +134,6 @@ jobs:
           echo "Dependencies being checked:"
           cat requirements.txt
           echo
-          # bash runs with pipefail, so a finding still fails this step after tee
           pip-audit -r requirements.txt --strict --desc on 2>&1 | tee sca-report.txt
 
       - name: Upload SCA report
