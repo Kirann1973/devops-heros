@@ -90,12 +90,16 @@ gate "cd $WORK && $WORK/venv/bin/bandit -r bad-code -ll -f custom --msg-template
 part2() {
 section s17-02-sca-secrets "SCA (pip-audit) and secret scanning (Gitleaks)"
 [ -x "$WORK/bin/gitleaks" ] || install_tools > "$WORK/install.log" 2>&1 || { say "tool install failed, last lines of $WORK/install.log:"; tail -15 "$WORK/install.log" | tee -a "$OUT"; }
+# pip-audit -r normally resolves the requirements in a temporary venv; without python3-venv (ensurepip)
+# that fails, so then audit exactly the pinned packages listed instead
+AUDIT_OPTS=""
+python3 -c "import ensurepip" 2>/dev/null || AUDIT_OPTS="--no-deps --disable-pip"
 note 'SCA - pip-audit checks every pinned dependency against the vulnerability databases'
 run "cat $PROJECT/requirements.txt"
-gate "$WORK/venv/bin/pip-audit -r $PROJECT/requirements.txt --strict"
+gate "$WORK/venv/bin/pip-audit -r $PROJECT/requirements.txt --strict $AUDIT_OPTS"
 note 'SCA demo: the old requests 2.19.1 that pipeline run #3 blocked'
 printf 'Flask==3.1.3\nrequests==2.19.1\n' > "$WORK/requirements-vulnerable.txt"
-gate "$WORK/venv/bin/pip-audit -r $WORK/requirements-vulnerable.txt --strict | cut -c1-120"
+gate "$WORK/venv/bin/pip-audit -r $WORK/requirements-vulnerable.txt --strict $AUDIT_OPTS | cut -c1-120"
 note 'Secret scan - Gitleaks on the project'
 gate "gitleaks dir $PROJECT --config $PROJECT/security/gitleaks.toml --redact --no-banner --no-color"
 note 'Secret scan demo: a fake key written into a scratch file (never committed)'
