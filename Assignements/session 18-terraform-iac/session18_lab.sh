@@ -95,7 +95,9 @@ section s18-02-examples "Instructor examples: init, fmt, validate in every folde
 for d in 0*/; do
   d=${d%/}
   say "---- $d"
-  ( cd "$d" && terraform init -input=false -no-color >/dev/null 2>&1 || echo "init failed"
+  # same pinned provider version as my demo (from its lock file), so the 800 MB provider is downloaded only once
+  [ -f "$d/.terraform.lock.hcl" ] || cp "$DEMO/.terraform.lock.hcl" "$d/"
+  ( cd "$d" && { terraform init -input=false -no-color > "$WORK/init.log" 2>&1 && echo "init: OK" || { echo "init failed:"; grep -v '^$' "$WORK/init.log" | tail -6; }; }
     terraform fmt -check >/dev/null && echo "fmt: OK" || echo "fmt: needs formatting"
     terraform validate -no-color ) 2>&1 | tee -a "$OUT"
 done
@@ -122,8 +124,8 @@ section s18-05-init-validate "terraform-s3-demo: init, fmt, validate"
 pick_bucket
 run "cd '$DEMO' && ls -1A"
 run "cd '$DEMO' && cat terraform.tfvars"
-note 'no shared cache here: the provider is downloaded and checked against the hashes in .terraform.lock.hcl'
-run "cd '$DEMO' && TF_PLUGIN_CACHE_DIR= terraform init -input=false"
+note 'the provider comes from the shared cache and is checked against the hashes in .terraform.lock.hcl'
+run "cd '$DEMO' && terraform init -input=false"
 run "cd '$DEMO' && terraform fmt -check -recursive && echo 'fmt: all files already formatted'"
 run "cd '$DEMO' && terraform validate"
 
